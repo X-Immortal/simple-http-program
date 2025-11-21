@@ -1,4 +1,4 @@
-package com;
+package com.server;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,6 +50,14 @@ public class SimpleHttpServer {
                 threadPool.execute(new ClientHandler(clientSocket));
             }
         } catch (IOException e) {
+            isRunning = false;
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                try {
+                    serverSocket.close();
+                } catch (IOException e2) {
+                    e2.printStackTrace();
+                }
+            }
             e.printStackTrace();
         }
     }
@@ -181,68 +189,4 @@ public class SimpleHttpServer {
         SimpleHttpServer server = new SimpleHttpServer(8080);
         server.start();
     }
-}
-
-// HTTP请求类
-class HttpRequest {
-    private String method;
-    private String path;
-    private String version;
-    private Map<String, String> headers;
-    private String body;
-
-    public HttpRequest() {
-        headers = new HashMap<>();
-    }
-
-    // getters and setters
-    public String getMethod() { return method; }
-    public void setMethod(String method) { this.method = method; }
-
-    public String getPath() { return path; }
-    public void setPath(String path) { this.path = path; }
-
-    public String getVersion() { return version; }
-    public void setVersion(String version) { this.version = version; }
-
-    public String getHeader(String name) { return headers.get(name); }
-    public void setHeader(String name, String value) { headers.put(name, value); }
-
-    public String getBody() { return body; }
-    public void setBody(String body) { this.body = body; }
-
-    public Map<String, String> getHeaders() {
-        return headers;
-    }
-}
-
-// HTTP响应类
-class HttpResponse {
-    private int statusCode;
-    private String statusMessage;
-    private Map<String, String> headers;
-    private String body;
-
-    public HttpResponse() {
-        headers = new HashMap<>();
-        statusCode = 200;
-        statusMessage = "OK";
-        setContentType("text/html");
-    }
-
-    // getters and setters
-    public int getStatusCode() { return statusCode; }
-    public void setStatusCode(int statusCode) { this.statusCode = statusCode; }
-
-    public String getStatusMessage() { return statusMessage; }
-    public void setStatusMessage(String statusMessage) { this.statusMessage = statusMessage; }
-
-    public String getHeader(String name) { return headers.get(name); }
-    public void setHeader(String name, String value) { headers.put(name, value); }
-
-    public String getBody() { return body; }
-    public void setBody(String body) { this.body = body; }
-
-    public String getContentType() { return getHeader("Content-Type"); }
-    public void setContentType(String contentType) { setHeader("Content-Type", contentType); }
 }
