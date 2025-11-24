@@ -1,7 +1,6 @@
-package com.client;
+package HTTP.client;
 //
-//import com.sun.deploy.net.HttpRequest;
-//import com.sun.deploy.net.HttpResponse;
+
 //
 //import java.io.*;
 //import java.net.Socket;
