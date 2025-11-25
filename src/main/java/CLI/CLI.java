@@ -1,17 +1,16 @@
 package CLI;
 
-import TCP.TCPClient;
 import org.apache.commons.cli.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.function.Consumer;
 
-public abstract class ClientCLI {
+public abstract class CLI {
+    protected String name;
+    protected String welcome;
     protected final Options options = new Options();
     protected final CommandLineParser parser = new DefaultParser();
     protected final HashMap<String, Consumer<CommandLine>> commands = new HashMap<>();
@@ -24,10 +23,10 @@ public abstract class ClientCLI {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
         new Thread(() -> {
-            System.out.println("====input \"connect <url>\" to get start====");
+            System.out.println("=====" + welcome + "=====");
 
             while (true) {
-                System.out.print("Client> ");
+                printPrompt();
                 String input;
                 try {
                     input = br.readLine().trim();
@@ -53,5 +52,9 @@ public abstract class ClientCLI {
             }
             commands.get(executable).accept(arguments);
         }
+    }
+
+    protected void printPrompt() {
+        System.out.print(name + "> ");
     }
 }

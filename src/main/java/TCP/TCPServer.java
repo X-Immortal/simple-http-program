@@ -6,11 +6,16 @@ import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class TCPServer {
     private ServerSocket serverSocket;
     private final int port;
-    private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
+    protected final ExecutorService threadPool = Executors.newFixedThreadPool(10);
+
+    protected Consumer<byte[]> showReceivedMessage = arg -> {};
+    protected Consumer<byte[]> showSentMessage = arg -> {};
+    protected Consumer<Integer> showStartInfo = arg -> {};
 
     public TCPServer(int port) {
         this.port = port;
@@ -20,10 +25,10 @@ public class TCPServer {
         try {
             serverSocket = new ServerSocket(port);
         } catch (IOException e) {
-            e.printStackTrace();
-            System.out.println("Failed to start server");
+            System.err.println("Failed to start server");
+            throw new RuntimeException(e);
         }
-        System.out.println("Server started");
+        showStartInfo.accept(port);
     }
 
     public void stop() {
@@ -38,27 +43,41 @@ public class TCPServer {
         }
     }
 
+    public void setShowReceivedMessage(Consumer<byte[]> handler) {
+        this.showReceivedMessage = handler;
+    }
+
+    public void setShowSentMessage(Consumer<byte[]> handler) {
+        this.showSentMessage = handler;
+    }
+
+    public void setShowStartInfo(Consumer<Integer> handler) {
+        this.showStartInfo = handler;
+    }
+
     public boolean isReady() {
         return serverSocket != null && !serverSocket.isClosed();
     }
 
-    public void run(Consumer<byte[]> handler) {
+    public void run(Function<byte[], byte[]> handler) {
         while (isReady()) {
             try {
                 Socket clientSocket = serverSocket.accept();
-                threadPool.execute(new ClientHandler(clientSocket, handler));
+                threadPool.execute(new TCPClientHandler(clientSocket, handler));
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                stop();
+                return;
             }
         }
     }
 
-    class ClientHandler implements Runnable {
-        private Socket clientSocket;
-        private byte[] message;
-        Consumer<byte[]> handler;
+    protected class TCPClientHandler implements Runnable {
+        protected final Socket clientSocket;
+        protected byte[] receivedMessage;
+        protected byte[] sentMessage;
+        protected Function<byte[], byte[]> handler;
 
-        public ClientHandler(Socket socket, Consumer<byte[]> handler) {
+        public TCPClientHandler(Socket socket, Function<byte[], byte[]> handler) {
             this.clientSocket = socket;
             this.handler = handler;
         }
@@ -66,18 +85,27 @@ public class TCPServer {
         @Override
         public void run() {
             try {
-                while (clientSocket != null && !clientSocket.isClosed()) {
+                while (isReady()) {
                     receiveMessage();
-                    handler.accept(message);
+                    if (receivedMessage == null || receivedMessage.length == 0) {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        continue;
+                    }
+                    sentMessage = handler.apply(receivedMessage);
+                    sendMessage();
                 }
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                e.printStackTrace();
             }
         }
 
-        private void receiveMessage() throws IOException {
+        protected void receiveMessage() throws IOException {
             // TODO: 实现TCP消息接收
-            if (clientSocket == null || clientSocket.isClosed()) {
+            if (!isReady()) {
                 throw new IOException("Client socket is not ready");
             }
             InputStream is = clientSocket.getInputStream();
@@ -87,9 +115,26 @@ public class TCPServer {
             while (is.available() > 0 && (bytesRead = is.read(buffer)) != -1) {
                 sb.append(new String(buffer, 0, bytesRead));
             }
-            message = sb.toString().getBytes();
+            receivedMessage = sb.toString().getBytes();
+        }
+
+        protected void sendMessage() throws IOException {
+            if (!isReady()) {
+                throw new RuntimeException("Client socket is not ready");
+            }
+            if (sentMessage == null) return;
+            OutputStream os = clientSocket.getOutputStream();
+            os.write(sentMessage);
+            os.flush();
+            showSentMessage.accept(sentMessage);
+        }
+
+        protected boolean isReady() {
+            return clientSocket != null && !clientSocket.isClosed();
         }
     }
+
+
 
     // 测试用，应先启动
     public static void main(String[] args) {
@@ -97,9 +142,10 @@ public class TCPServer {
         server.start();
         if (!server.isReady())  throw new RuntimeException("Failed to start server");
         Thread serverThread = new Thread(() -> server.run(bytes -> {
-            if (bytes == null || bytes.length == 0) return;
+            if (bytes == null || bytes.length == 0) return null;
             System.out.println("Received message: ");
             System.out.println(new String(bytes));
+            return ("Server received message: " + new String(bytes)).getBytes();
         }));
         Thread cmdThread = new Thread(() -> {
             BufferedReader br = new BufferedReader(new InputStreamReader(System.in));

@@ -1,7 +1,6 @@
 package HTTP.client;
 
 import TCP.TCPClient;
-import TCP.TCPServer;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,19 +11,19 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
-public final class HttpClient extends TCPClient {
+public final class HTTPClient extends TCPClient {
     private static final int MAX_REDIRECTS = 5;
     private static final String HTTP_VERSION = "HTTP/1.1";
     private static final String CRLF = "\r\n";
     private static final String HOST_HEADER = "Host: %s\r\n";
     private String path;
 
-    public HttpClient(String host, int port, String path) {
+    public HTTPClient(String host, int port, String path) {
         super(host, port);
         this.path = path;
     }
 
-    public HttpClient(URL url) {
+    public HTTPClient(URL url) {
         super(url);
         path = url.getPath();
     }

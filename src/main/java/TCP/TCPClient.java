@@ -57,10 +57,12 @@ public class TCPClient {
     public byte[] receiveMessage() throws IOException {
         if (!isReady()) throw new IOException("TCPClient is not ready");
         InputStream is = clientSocket.getInputStream();
+        StringBuilder sb = new StringBuilder();
         byte[] buffer = new byte[1024];
-        if (is.read(buffer) > 0) {
-            return buffer;
+        int bytesRead;
+        while (is.available() > 0 && (bytesRead = is.read(buffer)) != -1) {
+            sb.append(new String(buffer, 0, bytesRead));
         }
-        return new byte[0];
+        return sb.toString().getBytes();
     }
 }
