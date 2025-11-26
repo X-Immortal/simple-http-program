@@ -51,7 +51,10 @@ public class TCPClientCLI extends ClientCLI {
                 return;
             }
             try {
-                client.sendMessage(argsArr[0].replaceAll("\"", "").getBytes());
+                String arg = argsArr[0].replaceAll("\"", "")
+                        .replaceAll("\\\\n", "\n")
+                        .replaceAll("\\\\r", "\r");
+                client.sendMessage(arg.getBytes());
                 System.out.println("Succeeded to send message to server");
             } catch (IOException e) {
                 System.out.println("Failed to send message to server");

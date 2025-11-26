@@ -1,6 +1,7 @@
 package CLI.client;
 
 import HTTP.client.HTTPClient;
+import org.apache.commons.cli.CommandLine;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -12,6 +13,7 @@ public class HTTPClientCLI extends ClientCLI {
     {
         commands.put("connect", this::connect);
         commands.put("exit", this::exit);
+        commands.put("reconnect", this::reconnect);
     }
 
     public static void main(String[] args) throws IOException {
@@ -24,7 +26,7 @@ public class HTTPClientCLI extends ClientCLI {
         if (args.hasOption("h")) {
             System.out.println("Usage: connect <url> [-h|--help]");
         } else if (args.getArgs().length == 1) {
-            if (client == null || !client.isReady()) {
+            if (!isReady()) {
                 URL url;
                 try {
                     url = new URL(argsArr[0]);
@@ -34,10 +36,25 @@ public class HTTPClientCLI extends ClientCLI {
                 }
                 client = new HTTPClient(url);
                 client.connect();
+            } else {
+                System.out.println("Already connected");
             }
         } else {
             System.out.println("Invalid arguments");
         }
+    }
+
+    private void reconnect(org.apache.commons.cli.CommandLine args) {
+        if (!isReady()) {
+            System.out.println("Did not have a connection");
+            return;
+        }
+
+        client.connect();
+    }
+
+    private boolean isReady() {
+        return client != null && client.isReady();
     }
 
     void exit(org.apache.commons.cli.CommandLine args) {

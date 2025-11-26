@@ -1,22 +1,28 @@
-package HTTP.server;// HttpServer.java
+package HTTP.server;
 
+import HTTP.exception.HTTPMethodNotAllowedException;
 import HTTP.exception.HTTPRequestFormatException;
 import HTTP.exception.HTTPResponseFormatException;
 import HTTP.message.HTTPRequest;
 import HTTP.message.HTTPResponse;
+import HTTP.rule.HTTPEncodingRule;
+import HTTP.rule.HTTPVersion;
 import TCP.TCPServer;
 
 import java.io.*;
 import java.net.URLDecoder;
-import java.util.HashMap;
-import java.util.Map;
+import java.nio.file.FileSystems;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public class HTTPServer extends TCPServer {
+    private static final String PATH_SEPARATOR = FileSystems.getDefault().getSeparator();
     private static final Map<String, String> sessions = new ConcurrentHashMap<>();
-    private static final String ROOT_PATH = ".\\root\\";
+    private static final String ROOT_PATH = "." + PATH_SEPARATOR + "root" + PATH_SEPARATOR;
     private static final String DEFAULT_FILE_PATH = ROOT_PATH + "welcome.txt";
+    private static final String MSG_BODY_PATH = ROOT_PATH + "msgbody" + PATH_SEPARATOR;
     private static final String SERVER_NAME = "Simple HTTP Server";
     private final HashMap<String, Function<HTTPRequest, HTTPResponse>> routerMap = new HashMap<>();
 
@@ -42,36 +48,6 @@ public class HTTPServer extends TCPServer {
         super(port);
     }
 
-    public static void main(String[] args) {
-        HTTPServer server = new HTTPServer(8080);
-        server.start();
-        if (!server.isReady())  throw new RuntimeException("Failed to start server");
-        Thread serverThread = new Thread(() -> server.run(bytes -> {
-            if (bytes == null || bytes.length == 0) return null;
-            System.out.println("Received message: ");
-            System.out.println(new String(bytes));
-            return server.handleRequest(bytes);
-        }));
-        Thread cmdThread = new Thread(() -> {
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            while (true) {
-                try {
-                    String input = br.readLine();
-                    if ("exit".equals(input)) {
-                        serverThread.stop();
-                        server.stop();
-                        System.exit(0);
-                    }
-                } catch (IOException e) {
-                    server.stop();
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-        serverThread.start();
-        cmdThread.start();
-    }
-
     public void run() {
         run(bytes -> {
             if (bytes == null || bytes.length == 0) return null;
@@ -81,19 +57,25 @@ public class HTTPServer extends TCPServer {
     }
 
     private byte[] handleRequest(byte[] message) {
-        String messageStr = new String(message);
+        String messageStr = HTTPEncodingRule.decodeBinary(message);
         HTTPRequest request;
         try {
             request = new HTTPRequest(messageStr);
         } catch (HTTPRequestFormatException e) {
-            // TODO: 400状态码
-            return null;
+            return handleBadRequest().getBytes();
+        } catch (HTTPMethodNotAllowedException e) {
+            return handleMethodNotAllowed(e.getMessage()).getBytes();
         }
+        String path = request.getRequestLine().getPath();
         if (!routerMap.containsKey(request.getRequestLine().getPath())) {
-            // TODO
-            return null;
+            return handleNotFound().getBytes();
         }
-        return routerMap.get(request.getRequestLine().getPath()).apply(request).toString().getBytes();
+        return routerMap.get(request.getRequestLine().getPath()).apply(request).getBytes();
+    }
+
+    private String getRouter(String path) {
+        // TODO
+        return null;
     }
 
     private byte[] readFile(String path) throws IOException {
@@ -102,30 +84,28 @@ public class HTTPServer extends TCPServer {
             byte[] buf = new byte[1024];
             int n;
             while ((n = fis.read(buf)) != -1) {
-                sb.append(new String(buf, 0, n));
+                sb.append(new String(buf, 0, n, HTTPEncodingRule.BINARY_CHARSET));
             }
-            return sb.toString().getBytes();
+            return HTTPEncodingRule.encodeBinary(sb.toString());
         }
     }
 
     private HTTPResponse handleDefault(HTTPRequest request) {
         HTTPResponse response = new HTTPResponse();
         try {
-            String content = new String(readFile(DEFAULT_FILE_PATH));
+            byte[] content = readFile(DEFAULT_FILE_PATH);
 
             response.getStatusLine().setVersion(request.getRequestLine().getVersion());
             response.getStatusLine().setStatusCode(200);
             response.getHeaders().add("Content-Type", typeMap.get("txt"));
-            response.getHeaders().add("Content-Length", String.valueOf(content.length()));
+            response.getHeaders().add("Content-Length", String.valueOf(content.length));
             response.getHeaders().add("Server", SERVER_NAME);
             response.getBody().setBody(content);
             return response;
-        } catch (HTTPResponseFormatException e) {
-            throw new RuntimeException(e);
-            // TODO
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-            // TODO
+        } catch (FileNotFoundException e) {
+            return handleNotFound();
+        } catch (IOException | HTTPResponseFormatException e) {
+            return handleInternalServerError();
         }
     }
 
@@ -139,9 +119,147 @@ public class HTTPServer extends TCPServer {
         return null;
     }
 
+    private String listFiles(String path) {
+        StringBuilder sb = new StringBuilder();
+        File file = new File(path);
+        File[] files = file.listFiles();
+        if (files == null) return "";
+        for (File f : files) {
+            sb.append(f.getName()).append("\n");
+        }
+        return sb.toString();
+    }
+
     private HTTPResponse handleDocument(HTTPRequest request) {
-        // TODO
-        return null;
+        if (!request.getRequestLine().getMethod().equals("GET")) {
+            return handleMethodNotAllowed("Only GET method is allowed for this resource");
+        }
+
+        HTTPResponse response = new HTTPResponse();
+        String path = request.getRequestLine().getPath();
+
+        try {
+            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+            response.getStatusLine().setStatusCode(200);
+            if (path.equals("/document")) {
+                String content = listFiles(ROOT_PATH + "document");
+
+                response.getHeaders().add("Content-Type", typeMap.get("txt"));
+                response.getHeaders().add("Content-Length", String.valueOf(content.length()));
+                response.getBody().setBody(HTTPEncodingRule.encodeText(content));
+            } else {
+                byte[] content = readFile(ROOT_PATH + path);
+
+                String extension = getFileExtension(path);
+                if (extension.isEmpty()) {
+                    return handleInternalServerError();
+                }
+
+                response.getHeaders().add("Content-Type", typeMap.get(extension));
+                response.getHeaders().add("Content-Length", String.valueOf(content.length));
+                response.getBody().setBody(content);
+            }
+
+            return response;
+        } catch (FileNotFoundException e) {
+            return handleNotFound();
+        } catch (HTTPResponseFormatException | IOException e) {
+            return handleInternalServerError();
+        }
+    }
+
+    private HTTPResponse handleBadRequest() {
+        HTTPResponse response = new HTTPResponse();
+        try {
+            byte[] content = readFile(MSG_BODY_PATH + "400.txt");
+
+            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+            response.getStatusLine().setStatusCode(400);
+            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Length", String.valueOf(content.length));
+            response.getBody().setBody(content);
+            return response;
+        } catch (HTTPResponseFormatException | IOException e) {
+            return handleInternalServerError();
+        }
+    }
+
+    private HTTPResponse handleNotFound() {
+        HTTPResponse response = new HTTPResponse();
+        try {
+            byte[] content = readFile(MSG_BODY_PATH + "404.txt");
+
+            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+            response.getStatusLine().setStatusCode(404);
+            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Length", String.valueOf(content.length));
+            response.getBody().setBody(content);
+            return response;
+        } catch (HTTPResponseFormatException | IOException e) {
+            return handleInternalServerError();
+        }
+    }
+
+    private HTTPResponse handleInternalServerError() {
+        HTTPResponse response = new HTTPResponse();
+        try {
+            byte[] content = readFile(MSG_BODY_PATH + "500.txt");
+
+            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+            response.getStatusLine().setStatusCode(500);
+            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Length", String.valueOf(content.length));
+            response.getBody().setBody(content);
+            return response;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    private HTTPResponse handleMethodNotAllowed(String detail) {
+        HTTPResponse response = new HTTPResponse();
+
+        try {
+            String content = HTTPEncodingRule.decodeText(readFile(MSG_BODY_PATH + "405.txt"));
+            content = String.format(content, detail);
+
+            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+            response.getStatusLine().setStatusCode(405);
+            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Length", String.valueOf(content.length()));
+            response.getBody().setBody(HTTPEncodingRule.encodeText(content));
+            return response;
+        } catch (IOException | IllegalFormatException | HTTPResponseFormatException e) {
+            return handleInternalServerError();
+        }
+    }
+
+    private String getFileTimestamp(String path) throws FileNotFoundException {
+        File file = new File(path);
+
+        if (!file.exists() || file.isDirectory()) {
+            throw new FileNotFoundException(path);
+        }
+
+        Date lastModified = new Date(file.lastModified());
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        return dateFormat.format(lastModified);
+    }
+
+    private HTTPResponse handleNotModified(HTTPRequest request) {
+        HTTPResponse response = new HTTPResponse();
+
+        try {
+            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+            response.getStatusLine().setStatusCode(304);
+            response.getHeaders().add("Last-Modified", request.getHeaders().get("If-Modified-Since"));
+            return response;
+        } catch (HTTPResponseFormatException e) {
+            return handleInternalServerError();
+        }
     }
 
 //    private void handleRequest(String method, String path, Map<String, String> headers,
@@ -238,25 +356,6 @@ public class HTTPServer extends TCPServer {
 //    }
 
 //    private void serveFile(String path, Map<String, String> headers,OutputStream out, boolean keepAlive) throws IOException {
-//        if ("/".equals(path)) {
-//            path = "/index.html";
-//        }
-//
-//        String filename = "./www" + path;
-//        File file = new File(filename);
-//
-//        if (!file.exists() || file.isDirectory()) {
-//            sendErrorResponse(out, 404, "Not Found", keepAlive);
-//            return;
-//        }
-//
-//        long lastModified = file.lastModified();
-//        Date lastModifiedDate = new Date(lastModified);
-//
-//        SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
-//        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-//        String lastModifiedStr = dateFormat.format(lastModifiedDate);
-//
 //        String eTag = "\"" + Integer.toHexString((path + lastModified).hashCode()) + "\"";
 //
 //        String ifModifiedSince = headers.get("If-Modified-Since");
@@ -322,24 +421,6 @@ public class HTTPServer extends TCPServer {
 //        out.flush();
 //    }
 
-//    private void sendErrorResponse(OutputStream out, int statusCode, String message, boolean keepAlive) throws IOException {
-//        String statusText = getStatusText(statusCode);
-//        String json = "{\"error\": \"" + message + "\"}";
-//
-//        String response = "HTTP/1.1 " + statusCode + " " + statusText + "\r\n" +
-//                "Content-Type: application/json\r\n" +
-//                "Content-Length: " + json.length() + "\r\n" +
-//                (keepAlive ? "Connection: keep-alive\r\n" : "Connection: close\r\n") +
-//                "\r\n" + json;
-//
-//        out.write(response.getBytes());
-//        out.flush();
-//    }
-
-//    private void sendErrorResponse(OutputStream out, int statusCode, String message) throws IOException {
-//        sendErrorResponse(out, statusCode, message, false);
-//    }
-
 //    private void simulateError(OutputStream out, boolean keepAlive) {
 //        try {
 //            throw new RuntimeException("Simulated internal server error for testing");
@@ -381,19 +462,4 @@ public class HTTPServer extends TCPServer {
         int dotIndex = filename.lastIndexOf(".");
         return dotIndex == -1 ? "" : filename.substring(dotIndex + 1);
     }
-
-    private byte[] readFileContent(File file) throws IOException {
-        FileInputStream fis = new FileInputStream(file);
-        byte[] content = new byte[(int) file.length()];
-        fis.read(content);
-        fis.close();
-        return content;
-    }
-
-    private String getStatusText(int statusCode) {
-        switch (statusCode) {
-            default: return "Unknown";
-        }
-    }
-
 }

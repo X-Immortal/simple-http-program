@@ -1,8 +1,11 @@
 package HTTP.message;
 
+import HTTP.exception.HTTPMethodNotAllowedException;
 import HTTP.exception.HTTPRequestFormatException;
 import HTTP.exception.HTTPRequestHeadersFormatException;
 import HTTP.exception.HTTPRequestLineFormatException;
+import HTTP.rule.HTTPEncodingRule;
+import HTTP.rule.HTTPVersion;
 
 import java.util.*;
 
@@ -14,7 +17,6 @@ public class HTTPRequest {
     public static class HTTPRequestLine {
         private static final HashSet<String> supportedMethods = new HashSet<>();
         private static final String PATH_REGEX = "(/|(/[\\w-~\\.]+)+)(\\?\\w+(=\\w*)?(&\\w+(=\\w*)?)*)?";
-        private static final HashSet<String> supportedVersions = new HashSet<>();
 
         private String method;
         private String path;
@@ -22,17 +24,17 @@ public class HTTPRequest {
 
         static {
             Collections.addAll(supportedMethods, "GET", "POST");
-            Collections.addAll(supportedVersions, "HTTP/1.1");
         }
 
         public HTTPRequestLine() {
         }
 
-        public HTTPRequestLine(String line) throws HTTPRequestLineFormatException {
+        public HTTPRequestLine(String line) throws HTTPRequestLineFormatException, HTTPMethodNotAllowedException {
+            line = HTTPEncodingRule.binaryToText(line);
             parse(line);
         }
 
-        private void parse(String line) throws HTTPRequestLineFormatException {
+        private void parse(String line) throws HTTPRequestLineFormatException, HTTPMethodNotAllowedException {
             String[] parts = line.split(" ");
             if (parts.length != 3) {
                 throw new HTTPRequestLineFormatException("Lack necessary parts");
@@ -43,9 +45,9 @@ public class HTTPRequest {
             setVersion(parts[2]);
         }
 
-        private void setMethod(String method) throws HTTPRequestLineFormatException {
+        private void setMethod(String method) throws HTTPMethodNotAllowedException {
             if (!supportedMethods.contains(method)) {
-                throw new HTTPRequestLineFormatException("Method is not supported: " + method);
+                throw new HTTPMethodNotAllowedException("Method is not supported: " + method);
             }
             this.method = method;
         }
@@ -58,7 +60,7 @@ public class HTTPRequest {
         }
 
         private void setVersion(String version) throws HTTPRequestLineFormatException {
-            if (!supportedVersions.contains(version)) {
+            if (!HTTPVersion.support(version)) {
                 throw new HTTPRequestLineFormatException("Version is not supported: " + version);
             }
             this.version = version;
@@ -76,9 +78,8 @@ public class HTTPRequest {
             return version;
         }
 
-        @Override
-        public String toString() {
-            return String.join(" ", method, path, version);
+        public byte[] getBytes() {
+            return HTTPEncodingRule.encodeText(String.join(" ", method, path, version));
         }
     }
 
@@ -91,6 +92,7 @@ public class HTTPRequest {
         }
 
         public HTTPRequestHeaders(String headers) throws HTTPRequestHeadersFormatException {
+            headers = HTTPEncodingRule.binaryToText(headers);
             parse(headers);
         }
 
@@ -123,36 +125,39 @@ public class HTTPRequest {
             return fields;
         }
 
-        @Override
-        public String toString() {
+        public byte[] getBytes() {
             StringJoiner joiner = new StringJoiner("\r\n", "", "\r\n");
             for (Map.Entry<String, String> entry : fields.entrySet()) {
                 joiner.add(entry.getKey() + ": " + entry.getValue());
             }
-            return joiner.toString();
+            return HTTPEncodingRule.encodeText(joiner.toString());
         }
     }
 
     public static class HTTPRequestBody {
-        private String body;
+        private byte[] body;
 
         public HTTPRequestBody() {
+            body = new byte[0];
         }
 
-        public HTTPRequestBody(String body) {
+        public HTTPRequestBody(byte[] body) {
             setBody(body);
         }
 
-        public void setBody(String body) {
+        public HTTPRequestBody(String body) {
+            setBody(HTTPEncodingRule.encodeBinary(body));
+        }
+
+        public void setBody(byte[] body) {
             this.body = body;
         }
 
-        public String getBody() {
+        public byte[] getBody() {
             return body;
         }
 
-        @Override
-        public String toString() {
+        public byte[] getBytes() {
             return body;
         }
     }
@@ -175,11 +180,11 @@ public class HTTPRequest {
         body = new HTTPRequestBody();
     }
 
-    public HTTPRequest(String message) throws HTTPRequestFormatException {
+    public HTTPRequest(String message) throws HTTPRequestFormatException, HTTPMethodNotAllowedException {
         parse(message);
     }
 
-    private void parse(String message) throws HTTPRequestFormatException {
+    private void parse(String message) throws HTTPRequestFormatException, HTTPMethodNotAllowedException {
         String[] parts1 = message.split("\r\n", 2);
         if (parts1.length != 2) {
             throw new HTTPRequestFormatException("Lack necessary parts");
@@ -199,8 +204,11 @@ public class HTTPRequest {
         }
     }
 
-    @Override
-    public String toString() {
-        return String.join("\r\n", requestLine.toString(), headers.toString(), body.toString());
+    public byte[] getBytes() {
+        return HTTPEncodingRule.encodeBinary(
+                String.join("\r\n",
+                        HTTPEncodingRule.decodeBinary(requestLine.getBytes()),
+                        HTTPEncodingRule.decodeBinary(headers.getBytes()),
+                        HTTPEncodingRule.decodeBinary(body.getBytes())));
     }
 }

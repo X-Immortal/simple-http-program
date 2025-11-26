@@ -1,6 +1,8 @@
 package HTTP.message;
 
 import HTTP.exception.*;
+import HTTP.rule.HTTPEncodingRule;
+import HTTP.rule.HTTPVersion;
 
 import java.util.*;
 
@@ -10,7 +12,6 @@ public class HTTPResponse {
     private HTTPResponseBody body;
 
     public static class HTTPStatusLine {
-        private static final HashSet<String> supportedVersions = new HashSet<>();
         private static final HashMap<Integer, String> statusCodes = new HashMap<>();
 
         private String version;
@@ -18,8 +19,6 @@ public class HTTPResponse {
         private String statusMessage;
 
         static {
-            Collections.addAll(supportedVersions, "HTTP/1.1");
-
             statusCodes.put(200, "OK");
             statusCodes.put(301, "Moved Permanently");
             statusCodes.put(302, "Found");
@@ -35,12 +34,8 @@ public class HTTPResponse {
         public HTTPStatusLine() {
         }
 
-        public HTTPStatusLine(String version, int statusCode) throws HTTPStatusLineFormatException {
-            setVersion(version);
-            setStatusCode(statusCode);
-        }
-
         public HTTPStatusLine(String statusLine) throws HTTPStatusLineFormatException {
+            statusLine = HTTPEncodingRule.binaryToText(statusLine);
             String[] parts = statusLine.split(" ");
             if (parts.length != 3) {
                 throw new HTTPStatusLineFormatException("Lack necessary parts");
@@ -51,7 +46,7 @@ public class HTTPResponse {
         }
 
         public void setVersion(String version) throws HTTPStatusLineFormatException {
-            if (!supportedVersions.contains(version)) {
+            if (!HTTPVersion.support(version)) {
                 throw new HTTPStatusLineFormatException("HTTP version is not supported: " + version);
             }
             this.version = version;
@@ -77,9 +72,8 @@ public class HTTPResponse {
             return statusMessage;
         }
 
-        @Override
-        public String toString() {
-            return String.join(" ", version, String.valueOf(statusCode), statusMessage);
+        public byte[] getBytes() {
+            return HTTPEncodingRule.encodeText(String.join(" ", version, String.valueOf(statusCode), statusMessage));
         }
     }
 
@@ -92,6 +86,7 @@ public class HTTPResponse {
         }
 
         public HTTPResponseHeaders(String headers) throws HTTPResponseHeadersFormatException {
+            headers = HTTPEncodingRule.binaryToText(headers);
             parse(headers);
         }
 
@@ -124,36 +119,34 @@ public class HTTPResponse {
             return fields;
         }
 
-        @Override
-        public String toString() {
+        public byte[] getBytes() {
             StringJoiner joiner = new StringJoiner("\r\n", "", "\r\n");
             for (Map.Entry<String, String> entry : fields.entrySet()) {
                 joiner.add(entry.getKey() + ": " + entry.getValue());
             }
-            return joiner.toString();
+            return HTTPEncodingRule.encodeText(joiner.toString());
         }
     }
 
     public static class HTTPResponseBody {
-        private String body;
+        private byte[] body;
 
         public HTTPResponseBody() {
         }
 
         public HTTPResponseBody(String body) {
+            this.body = HTTPEncodingRule.encodeBinary(body);
+        }
+
+        public void setBody(byte[] body) {
             this.body = body;
         }
 
-        public void setBody(String body) {
-            this.body = body;
-        }
-
-        public String getBody() {
+        public byte[] getBody() {
             return body;
         }
 
-        @Override
-        public String toString() {
+        public byte[] getBytes() {
             return body;
         }
     }
@@ -195,7 +188,11 @@ public class HTTPResponse {
         }
     }
 
-    public String toString() {
-        return String.join("\r\n", statusLine.toString(), headers.toString(), body.toString());
+    public byte[] getBytes() {
+        return HTTPEncodingRule.encodeBinary(
+                String.join("\r\n",
+                        HTTPEncodingRule.decodeBinary(statusLine.getBytes()),
+                        HTTPEncodingRule.decodeBinary(headers.getBytes()),
+                        HTTPEncodingRule.decodeBinary(body.getBytes())) );
     }
 }
