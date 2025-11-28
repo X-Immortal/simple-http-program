@@ -47,10 +47,6 @@ public class HTTPServerCLI extends ServerCLI {
             printPrompt();
         });
 
-        server.start();
-
-        if (!server.isReady())  throw new RuntimeException("Failed to start server");
-
         Thread serverThread = new Thread(server::run);
         serverThread.start();
     }

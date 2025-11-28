@@ -1,1 +1,3 @@
 Welcome to our server!
+You can enter /document/ for sample file list,
+and then enter /document/file-name for file content.

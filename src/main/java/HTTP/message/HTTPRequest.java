@@ -4,7 +4,7 @@ import HTTP.exception.HTTPMethodNotAllowedException;
 import HTTP.exception.HTTPRequestFormatException;
 import HTTP.exception.HTTPRequestHeadersFormatException;
 import HTTP.exception.HTTPRequestLineFormatException;
-import HTTP.rule.HTTPEncodingRule;
+import HTTP.utils.HTTPEncodingUtil;
 import HTTP.rule.HTTPVersion;
 
 import java.util.*;
@@ -16,22 +16,26 @@ public class HTTPRequest {
 
     public static class HTTPRequestLine {
         private static final HashSet<String> supportedMethods = new HashSet<>();
-        private static final String PATH_REGEX = "(/|(/[\\w-~\\.]+)+)(\\?\\w+(=\\w*)?(&\\w+(=\\w*)?)*)?";
+        private static final String PATH_REGEX = "(/|(/[\\w-~\\.]+)+/?)(\\?\\w+(=\\w*)?(&\\w+(=\\w*)?)*)?";
 
         private String method;
         private String path;
         private String version;
+        private boolean modifiable;
 
         static {
             Collections.addAll(supportedMethods, "GET", "POST");
         }
 
         public HTTPRequestLine() {
+            modifiable = true;
         }
 
         public HTTPRequestLine(String line) throws HTTPRequestLineFormatException, HTTPMethodNotAllowedException {
-            line = HTTPEncodingRule.binaryToText(line);
+            line = HTTPEncodingUtil.binaryToText(line);
+            modifiable = true;
             parse(line);
+            modifiable = false;
         }
 
         private void parse(String line) throws HTTPRequestLineFormatException, HTTPMethodNotAllowedException {
@@ -45,21 +49,24 @@ public class HTTPRequest {
             setVersion(parts[2]);
         }
 
-        private void setMethod(String method) throws HTTPMethodNotAllowedException {
+        public void setMethod(String method) throws HTTPMethodNotAllowedException {
+            if (!modifiable) return;
             if (!supportedMethods.contains(method)) {
                 throw new HTTPMethodNotAllowedException("Method is not supported: " + method);
             }
             this.method = method;
         }
 
-        private void setPath(String path) throws HTTPRequestLineFormatException {
+        public void setPath(String path) throws HTTPRequestLineFormatException {
+            if (!modifiable) return;
             if (!path.matches(PATH_REGEX)) {
                 throw new HTTPRequestLineFormatException("Invalid path: " + path);
             }
             this.path = path;
         }
 
-        private void setVersion(String version) throws HTTPRequestLineFormatException {
+        public void setVersion(String version) throws HTTPRequestLineFormatException {
+            if (!modifiable) return;
             if (!HTTPVersion.support(version)) {
                 throw new HTTPRequestLineFormatException("Version is not supported: " + version);
             }
@@ -79,21 +86,25 @@ public class HTTPRequest {
         }
 
         public byte[] getBytes() {
-            return HTTPEncodingRule.encodeText(String.join(" ", method, path, version));
+            return HTTPEncodingUtil.encodeText(String.join(" ", method, path, version));
         }
     }
 
     public static class HTTPRequestHeaders {
-        private static final String KEY_REGEX = "[A-Z][a-z]*(-[A-Z][a-z]*)*";
+        private static final String KEY_REGEX = "[A-Za-z]+(-[A-Za-z]*)*";
 
         private final HashMap<String, String> fields = new HashMap<>();
+        private boolean modifiable;
 
         public HTTPRequestHeaders() {
+            modifiable = true;
         }
 
         public HTTPRequestHeaders(String headers) throws HTTPRequestHeadersFormatException {
-            headers = HTTPEncodingRule.binaryToText(headers);
+            headers = HTTPEncodingUtil.binaryToText(headers);
+            modifiable = true;
             parse(headers);
+            modifiable = false;
         }
 
         private void parse(String headers) throws HTTPRequestHeadersFormatException {
@@ -111,6 +122,7 @@ public class HTTPRequest {
         }
 
         public void add(String name, String value) throws HTTPRequestHeadersFormatException {
+            if (!modifiable) return;
             if (!name.matches(KEY_REGEX)) {
                 throw new HTTPRequestHeadersFormatException("Invalid field name: " + name);
             }
@@ -122,7 +134,11 @@ public class HTTPRequest {
         }
 
         public HashMap<String, String> getFields() {
-            return fields;
+            return new HashMap<>(fields);
+        }
+
+        public boolean contains(String name) {
+            return fields.containsKey(name);
         }
 
         public byte[] getBytes() {
@@ -130,26 +146,33 @@ public class HTTPRequest {
             for (Map.Entry<String, String> entry : fields.entrySet()) {
                 joiner.add(entry.getKey() + ": " + entry.getValue());
             }
-            return HTTPEncodingRule.encodeText(joiner.toString());
+            return HTTPEncodingUtil.encodeText(joiner.toString());
         }
     }
 
     public static class HTTPRequestBody {
         private byte[] body;
+        private boolean modifiable;
 
         public HTTPRequestBody() {
             body = new byte[0];
+            modifiable = true;
         }
 
         public HTTPRequestBody(byte[] body) {
+            modifiable = true;
             setBody(body);
+            modifiable = false;
         }
 
         public HTTPRequestBody(String body) {
-            setBody(HTTPEncodingRule.encodeBinary(body));
+            modifiable = true;
+            setBody(HTTPEncodingUtil.encodeBinary(body));
+            modifiable = false;
         }
 
         public void setBody(byte[] body) {
+            if (!modifiable) return;
             this.body = body;
         }
 
@@ -205,10 +228,10 @@ public class HTTPRequest {
     }
 
     public byte[] getBytes() {
-        return HTTPEncodingRule.encodeBinary(
+        return HTTPEncodingUtil.encodeBinary(
                 String.join("\r\n",
-                        HTTPEncodingRule.decodeBinary(requestLine.getBytes()),
-                        HTTPEncodingRule.decodeBinary(headers.getBytes()),
-                        HTTPEncodingRule.decodeBinary(body.getBytes())));
+                        HTTPEncodingUtil.decodeBinary(requestLine.getBytes()),
+                        HTTPEncodingUtil.decodeBinary(headers.getBytes()),
+                        HTTPEncodingUtil.decodeBinary(body.getBytes())));
     }
 }

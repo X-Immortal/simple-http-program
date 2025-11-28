@@ -1,7 +1,7 @@
 package HTTP.message;
 
 import HTTP.exception.*;
-import HTTP.rule.HTTPEncodingRule;
+import HTTP.utils.HTTPEncodingUtil;
 import HTTP.rule.HTTPVersion;
 
 import java.util.*;
@@ -17,6 +17,7 @@ public class HTTPResponse {
         private String version;
         private int statusCode;
         private String statusMessage;
+        private boolean modifiable;
 
         static {
             statusCodes.put(200, "OK");
@@ -32,20 +33,24 @@ public class HTTPResponse {
         }
 
         public HTTPStatusLine() {
+            modifiable = true;
         }
 
         public HTTPStatusLine(String statusLine) throws HTTPStatusLineFormatException {
-            statusLine = HTTPEncodingRule.binaryToText(statusLine);
-            String[] parts = statusLine.split(" ");
+            statusLine = HTTPEncodingUtil.binaryToText(statusLine);
+            String[] parts = statusLine.split(" ", 3);
             if (parts.length != 3) {
                 throw new HTTPStatusLineFormatException("Lack necessary parts");
             }
 
+            modifiable = true;
             setVersion(parts[0]);
             setStatusCode(Integer.parseInt(parts[1]));
+            modifiable = false;
         }
 
         public void setVersion(String version) throws HTTPStatusLineFormatException {
+            if (!modifiable) return;
             if (!HTTPVersion.support(version)) {
                 throw new HTTPStatusLineFormatException("HTTP version is not supported: " + version);
             }
@@ -53,6 +58,7 @@ public class HTTPResponse {
         }
 
         public void setStatusCode(int statusCode) throws HTTPStatusLineFormatException {
+            if (!modifiable) return;
             if (!statusCodes.containsKey(statusCode)) {
                 throw new HTTPStatusLineFormatException("HTTP status code is not supported: " + statusCode);
             }
@@ -73,21 +79,25 @@ public class HTTPResponse {
         }
 
         public byte[] getBytes() {
-            return HTTPEncodingRule.encodeText(String.join(" ", version, String.valueOf(statusCode), statusMessage));
+            return HTTPEncodingUtil.encodeText(String.join(" ", version, String.valueOf(statusCode), statusMessage));
         }
     }
 
     public static class HTTPResponseHeaders {
-        private static final String KEY_REGEX = "[A-Z][a-z]*(-[A-Z][a-z]*)*";
+        private static final String KEY_REGEX = "[A-Za-z]+(-[A-Za-z]*)*";
 
         private final HashMap<String, String> fields = new HashMap<>();
+        private boolean modifiable;
 
         public HTTPResponseHeaders() {
+            modifiable = true;
         }
 
         public HTTPResponseHeaders(String headers) throws HTTPResponseHeadersFormatException {
-            headers = HTTPEncodingRule.binaryToText(headers);
+            headers = HTTPEncodingUtil.binaryToText(headers);
+            modifiable = true;
             parse(headers);
+            modifiable = false;
         }
 
         private void parse(String headers) throws HTTPResponseHeadersFormatException {
@@ -105,6 +115,7 @@ public class HTTPResponse {
         }
 
         public void add(String name, String value) throws HTTPResponseHeadersFormatException {
+            if (!modifiable) return;
             if (!name.matches(KEY_REGEX)) {
                 throw new HTTPResponseHeadersFormatException("Invalid field name: " + name);
             }
@@ -116,7 +127,11 @@ public class HTTPResponse {
         }
 
         public HashMap<String, String> getHeaders() {
-            return fields;
+            return new HashMap<>(fields);
+        }
+
+        public boolean contains(String name) {
+            return fields.containsKey(name);
         }
 
         public byte[] getBytes() {
@@ -124,21 +139,26 @@ public class HTTPResponse {
             for (Map.Entry<String, String> entry : fields.entrySet()) {
                 joiner.add(entry.getKey() + ": " + entry.getValue());
             }
-            return HTTPEncodingRule.encodeText(joiner.toString());
+            return HTTPEncodingUtil.encodeText(joiner.toString());
         }
     }
 
     public static class HTTPResponseBody {
         private byte[] body;
+        private boolean modifiable;
 
         public HTTPResponseBody() {
+            this.body = new byte[0];
+            modifiable = true;
         }
 
         public HTTPResponseBody(String body) {
-            this.body = HTTPEncodingRule.encodeBinary(body);
+            this.body = HTTPEncodingUtil.encodeBinary(body);
+            modifiable = false;
         }
 
         public void setBody(byte[] body) {
+            if (!modifiable) return;
             this.body = body;
         }
 
@@ -189,10 +209,10 @@ public class HTTPResponse {
     }
 
     public byte[] getBytes() {
-        return HTTPEncodingRule.encodeBinary(
+        return HTTPEncodingUtil.encodeBinary(
                 String.join("\r\n",
-                        HTTPEncodingRule.decodeBinary(statusLine.getBytes()),
-                        HTTPEncodingRule.decodeBinary(headers.getBytes()),
-                        HTTPEncodingRule.decodeBinary(body.getBytes())) );
+                        HTTPEncodingUtil.decodeBinary(statusLine.getBytes()),
+                        HTTPEncodingUtil.decodeBinary(headers.getBytes()),
+                        HTTPEncodingUtil.decodeBinary(body.getBytes())) );
     }
 }

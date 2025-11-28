@@ -1,7 +1,7 @@
 package CLI.client;
 
 import HTTP.client.HTTPClient;
-import org.apache.commons.cli.CommandLine;
+import HTTP.utils.HTTPEncodingUtil;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -14,6 +14,7 @@ public class HTTPClientCLI extends ClientCLI {
         commands.put("connect", this::connect);
         commands.put("exit", this::exit);
         commands.put("reconnect", this::reconnect);
+        commands.put("enter", this::enter);
     }
 
     public static void main(String[] args) throws IOException {
@@ -27,15 +28,10 @@ public class HTTPClientCLI extends ClientCLI {
             System.out.println("Usage: connect <url> [-h|--help]");
         } else if (args.getArgs().length == 1) {
             if (!isReady()) {
-                URL url;
-                try {
-                    url = new URL(argsArr[0]);
-                } catch (MalformedURLException e) {
-                    System.out.println("Invalid url: " + argsArr[0]);
-                    return;
-                }
-                client = new HTTPClient(url);
-                client.connect();
+                connect(argsArr[0]);
+                client.connect(message ->
+                    System.out.println(HTTPEncodingUtil.decodeText(message))
+                );
             } else {
                 System.out.println("Already connected");
             }
@@ -44,17 +40,55 @@ public class HTTPClientCLI extends ClientCLI {
         }
     }
 
-    private void reconnect(org.apache.commons.cli.CommandLine args) {
-        if (!isReady()) {
-            System.out.println("Did not have a connection");
+    private void connect(String urlStr) {
+        if (isReady()) {
             return;
         }
 
-        client.connect();
+        URL url;
+        try {
+            url = new URL(urlStr);
+        } catch (MalformedURLException e) {
+            System.out.println("Invalid url: " + urlStr);
+            return;
+        }
+        client = new HTTPClient(url);
     }
 
-    private boolean isReady() {
-        return client != null && client.isReady();
+    private void reconnect(org.apache.commons.cli.CommandLine args) {
+        String[] argsArr = args.getArgs();
+        if (args.hasOption("h")) {
+            System.out.println("Usage: reconnect [-h|--help]");
+        } else if (args.getArgs().length == 0) {
+            if (!isReady()) {
+                System.out.println("Did not have a connection");
+                return;
+            }
+
+            client.connect(message ->
+                    System.out.println(HTTPEncodingUtil.decodeText(message))
+            );
+        } else {
+            System.out.println("Invalid arguments");
+        }
+    }
+
+    private void enter(org.apache.commons.cli.CommandLine args) {
+        String[] argsArr = args.getArgs();
+        if (client == null) {
+            connect(argsArr[0]);
+        }
+        if (!client.isReady()) {
+            client.start();
+        }
+        try {
+            URL url = new URL(argsArr[0]);
+            client.enter(url.getPath(), message ->
+                    System.out.println(HTTPEncodingUtil.decodeText(message))
+            );
+        } catch (MalformedURLException e) {
+            System.out.println("Invalid url: " + argsArr[0]);
+        }
     }
 
     void exit(org.apache.commons.cli.CommandLine args) {
@@ -64,33 +98,7 @@ public class HTTPClientCLI extends ClientCLI {
         System.exit(0);
     }
 
-    @Override
-    protected void start() {
-        super.start();
-
-        Thread receiveThread = new Thread(() -> {
-            while (true) {
-                if (client != null && client.isReady()) {
-                    try {
-                        byte[] message = client.receiveMessage();
-                        if (message.length > 0) {
-                            System.out.println();
-                            System.out.println("Received message: ");
-                            System.out.println(new String(message));
-                            System.out.print("Client> ");
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-
-        receiveThread.start();
+    private boolean isReady() {
+        return client != null && client.isReady();
     }
 }

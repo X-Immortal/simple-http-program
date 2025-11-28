@@ -21,11 +21,11 @@ public class TCPServer {
         this.port = port;
     }
 
-    public void start() {
+    protected void start() {
         try {
             serverSocket = new ServerSocket(port);
         } catch (IOException e) {
-            System.err.println("Failed to start server");
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
         showStartInfo.accept(port);
@@ -60,6 +60,7 @@ public class TCPServer {
     }
 
     public void run(Function<byte[], byte[]> handler) {
+        if (!isReady()) start();
         while (isReady()) {
             try {
                 Socket clientSocket = serverSocket.accept();

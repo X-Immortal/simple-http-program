@@ -1,10 +1,9 @@
 package TCP;
 
-import java.io.*;
-import java.net.MalformedURLException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.Socket;
 import java.net.URL;
-import java.net.URLConnection;
 
 public class TCPClient {
     private Socket clientSocket;
@@ -29,7 +28,7 @@ public class TCPClient {
             System.out.println("Failed to connect to " + host + ": " + port);
             throw new RuntimeException(e);
         }
-        System.out.println("Connected to " + host + ": " + port);
+//        System.out.println("Connected to " + host + ": " + port);
     }
 
     public void stop() {
@@ -49,19 +48,21 @@ public class TCPClient {
     }
 
     public void sendMessage(byte[] message) throws IOException {
-        if (!isReady()) throw new IOException("TCPClient is not ready");
+        if (!isReady()) start();
         clientSocket.getOutputStream().write(message);
         clientSocket.getOutputStream().flush();
     }
 
     public byte[] receiveMessage() throws IOException {
-        if (!isReady()) throw new IOException("TCPClient is not ready");
+        if (!isReady()) start();
         InputStream is = clientSocket.getInputStream();
         StringBuilder sb = new StringBuilder();
-        byte[] buffer = new byte[1024];
-        int bytesRead;
-        while (is.available() > 0 && (bytesRead = is.read(buffer)) != -1) {
-            sb.append(new String(buffer, 0, bytesRead));
+        while (sb.isEmpty()) {
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while (is.available() > 0 && (bytesRead = is.read(buffer)) != -1) {
+                sb.append(new String(buffer, 0, bytesRead));
+            }
         }
         return sb.toString().getBytes();
     }
