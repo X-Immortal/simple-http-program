@@ -1,12 +1,13 @@
 package CLI.server;
 
+import CLI.Command;
 import HTTP.server.HTTPServer;
 
 public class HTTPServerCLI extends ServerCLI {
     private HTTPServer server;
 
     {
-        commands.put("exit", this::exit);
+        commands.put("exit", new Command(0, "exit", "退出服务器", this::exit));
     }
 
     public static void main(String[] args) {
@@ -14,7 +15,7 @@ public class HTTPServerCLI extends ServerCLI {
         cli.start();
     }
 
-    void exit(org.apache.commons.cli.CommandLine args) {
+    private void exit(org.apache.commons.cli.CommandLine args) {
         if (server != null && server.isReady()) {
             server.stop();
         }
@@ -23,14 +24,10 @@ public class HTTPServerCLI extends ServerCLI {
 
     @Override
     protected void start() {
-        super.start();
-
         server = new HTTPServer(8080);
 
         server.setShowStartInfo(port -> {
-            System.out.println();
             System.out.println("server started on port: " + port);
-            printPrompt();
         });
 
         server.setShowReceivedMessage(message ->{
@@ -49,5 +46,7 @@ public class HTTPServerCLI extends ServerCLI {
 
         Thread serverThread = new Thread(server::run);
         serverThread.start();
+
+        super.start();
     }
 }

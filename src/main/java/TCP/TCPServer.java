@@ -21,7 +21,7 @@ public class TCPServer {
         this.port = port;
     }
 
-    protected void start() {
+    public void start() {
         try {
             serverSocket = new ServerSocket(port);
         } catch (IOException e) {
@@ -133,38 +133,5 @@ public class TCPServer {
         protected boolean isReady() {
             return clientSocket != null && !clientSocket.isClosed();
         }
-    }
-
-
-
-    // 测试用，应先启动
-    public static void main(String[] args) {
-        TCPServer server = new TCPServer(8080);
-        server.start();
-        if (!server.isReady())  throw new RuntimeException("Failed to start server");
-        Thread serverThread = new Thread(() -> server.run(bytes -> {
-            if (bytes == null || bytes.length == 0) return null;
-            System.out.println("Received message: ");
-            System.out.println(new String(bytes));
-            return ("Server received message: " + new String(bytes)).getBytes();
-        }));
-        Thread cmdThread = new Thread(() -> {
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            while (true) {
-                try {
-                    String input = br.readLine();
-                    if ("exit".equals(input)) {
-                        serverThread.stop();
-                        server.stop();
-                        System.exit(0);
-                    }
-                } catch (IOException e) {
-                    server.stop();
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-        serverThread.start();
-        cmdThread.start();
     }
 }

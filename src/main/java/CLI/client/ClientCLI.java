@@ -5,7 +5,7 @@ import CLI.CLI;
 public abstract class ClientCLI extends CLI {
 
     protected ClientCLI() {
-        name = "Client";
+        prompt = "Client";
         welcome = "input \"connect <url>\" to get started";
     }
 }

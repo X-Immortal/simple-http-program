@@ -1,10 +1,10 @@
 package HTTP.message;
 
-import HTTP.exception.HTTPMethodNotAllowedException;
-import HTTP.exception.HTTPRequestFormatException;
-import HTTP.exception.HTTPRequestHeadersFormatException;
-import HTTP.exception.HTTPRequestLineFormatException;
-import HTTP.utils.HTTPEncodingUtil;
+import HTTP.message.exception.HTTPMethodNotAllowedException;
+import HTTP.message.exception.HTTPRequestFormatException;
+import HTTP.message.exception.HTTPRequestHeadersFormatException;
+import HTTP.message.exception.HTTPRequestLineFormatException;
+import HTTP.utils.EncodingUtil;
 import HTTP.rule.HTTPVersion;
 
 import java.util.*;
@@ -32,7 +32,7 @@ public class HTTPRequest {
         }
 
         public HTTPRequestLine(String line) throws HTTPRequestLineFormatException, HTTPMethodNotAllowedException {
-            line = HTTPEncodingUtil.binaryToText(line);
+            line = EncodingUtil.binaryToText(line);
             modifiable = true;
             parse(line);
             modifiable = false;
@@ -86,7 +86,7 @@ public class HTTPRequest {
         }
 
         public byte[] getBytes() {
-            return HTTPEncodingUtil.encodeText(String.join(" ", method, path, version));
+            return EncodingUtil.encodeText(String.join(" ", method, path, version));
         }
     }
 
@@ -101,7 +101,7 @@ public class HTTPRequest {
         }
 
         public HTTPRequestHeaders(String headers) throws HTTPRequestHeadersFormatException {
-            headers = HTTPEncodingUtil.binaryToText(headers);
+            headers = EncodingUtil.binaryToText(headers);
             modifiable = true;
             parse(headers);
             modifiable = false;
@@ -146,7 +146,7 @@ public class HTTPRequest {
             for (Map.Entry<String, String> entry : fields.entrySet()) {
                 joiner.add(entry.getKey() + ": " + entry.getValue());
             }
-            return HTTPEncodingUtil.encodeText(joiner.toString());
+            return EncodingUtil.encodeText(joiner.toString());
         }
     }
 
@@ -167,7 +167,7 @@ public class HTTPRequest {
 
         public HTTPRequestBody(String body) {
             modifiable = true;
-            setBody(HTTPEncodingUtil.encodeBinary(body));
+            setBody(EncodingUtil.encodeBinary(body));
             modifiable = false;
         }
 
@@ -217,21 +217,26 @@ public class HTTPRequest {
         String[] parts2 = parts1[1].split("(?<=\r\n)\r\n");
         headers = new HTTPRequestHeaders(parts2[0]);
 
-        if (requestLine.getMethod().equals("GET") && parts2.length != 1) {
-            throw new HTTPRequestFormatException("GET method cannot have body");
-        } else if (requestLine.getMethod().equals("POST")) {
-            if (parts2.length != 2) {
-                throw new HTTPRequestFormatException("POST method must have body");
+        int contentLength;
+        if (headers.contains("Content-Length")) {
+            contentLength = Integer.parseInt(headers.get("Content-Length"));
+        } else {
+            contentLength = 0;
+        }
+
+        if (contentLength > 0) {
+            if (parts2.length != 2 || parts2[1].length() < contentLength) {
+                throw new HTTPRequestFormatException("Lack body");
             }
-            body = new HTTPRequestBody(parts2[1]);
+            body = new HTTPRequestBody(parts2[1].substring(0, contentLength));
         }
     }
 
     public byte[] getBytes() {
-        return HTTPEncodingUtil.encodeBinary(
+        return EncodingUtil.encodeBinary(
                 String.join("\r\n",
-                        HTTPEncodingUtil.decodeBinary(requestLine.getBytes()),
-                        HTTPEncodingUtil.decodeBinary(headers.getBytes()),
-                        HTTPEncodingUtil.decodeBinary(body.getBytes())));
+                        EncodingUtil.decodeBinary(requestLine.getBytes()),
+                        EncodingUtil.decodeBinary(headers.getBytes()),
+                        EncodingUtil.decodeBinary(body.getBytes())));
     }
 }

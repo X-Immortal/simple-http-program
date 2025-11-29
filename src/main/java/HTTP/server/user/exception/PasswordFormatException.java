@@ -1,4 +1,4 @@
-package HTTP.server.user;
+package HTTP.server.user.exception;
 
 import java.io.Serial;
 

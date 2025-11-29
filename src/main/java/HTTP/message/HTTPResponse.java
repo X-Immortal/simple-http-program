@@ -1,10 +1,14 @@
 package HTTP.message;
 
-import HTTP.exception.*;
-import HTTP.utils.HTTPEncodingUtil;
+import HTTP.message.exception.HTTPResponseFormatException;
+import HTTP.message.exception.HTTPResponseHeadersFormatException;
+import HTTP.message.exception.HTTPStatusLineFormatException;
 import HTTP.rule.HTTPVersion;
+import HTTP.utils.EncodingUtil;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.StringJoiner;
 
 public class HTTPResponse {
     private HTTPStatusLine statusLine;
@@ -37,7 +41,7 @@ public class HTTPResponse {
         }
 
         public HTTPStatusLine(String statusLine) throws HTTPStatusLineFormatException {
-            statusLine = HTTPEncodingUtil.binaryToText(statusLine);
+            statusLine = EncodingUtil.binaryToText(statusLine);
             String[] parts = statusLine.split(" ", 3);
             if (parts.length != 3) {
                 throw new HTTPStatusLineFormatException("Lack necessary parts");
@@ -79,7 +83,7 @@ public class HTTPResponse {
         }
 
         public byte[] getBytes() {
-            return HTTPEncodingUtil.encodeText(String.join(" ", version, String.valueOf(statusCode), statusMessage));
+            return EncodingUtil.encodeText(String.join(" ", version, String.valueOf(statusCode), statusMessage));
         }
     }
 
@@ -94,7 +98,7 @@ public class HTTPResponse {
         }
 
         public HTTPResponseHeaders(String headers) throws HTTPResponseHeadersFormatException {
-            headers = HTTPEncodingUtil.binaryToText(headers);
+            headers = EncodingUtil.binaryToText(headers);
             modifiable = true;
             parse(headers);
             modifiable = false;
@@ -139,7 +143,7 @@ public class HTTPResponse {
             for (Map.Entry<String, String> entry : fields.entrySet()) {
                 joiner.add(entry.getKey() + ": " + entry.getValue());
             }
-            return HTTPEncodingUtil.encodeText(joiner.toString());
+            return EncodingUtil.encodeText(joiner.toString());
         }
     }
 
@@ -153,7 +157,7 @@ public class HTTPResponse {
         }
 
         public HTTPResponseBody(String body) {
-            this.body = HTTPEncodingUtil.encodeBinary(body);
+            this.body = EncodingUtil.encodeBinary(body);
             modifiable = false;
         }
 
@@ -203,16 +207,20 @@ public class HTTPResponse {
         String[] parts2 = parts1[1].split("(?<=\r\n)\r\n");
         headers = new HTTPResponseHeaders(parts2[0]);
 
-        if (parts2.length == 2) {
-            body = new HTTPResponseBody(parts2[1]);
+        int contentLength = Integer.parseInt(headers.get("Content-Length"));
+        if (contentLength > 0) {
+            if (parts2.length != 2 || parts2[1].length() < contentLength) {
+                throw new HTTPResponseFormatException("Lack body");
+            }
+            body = new HTTPResponseBody(parts2[1].substring(0, contentLength));
         }
     }
 
     public byte[] getBytes() {
-        return HTTPEncodingUtil.encodeBinary(
+        return EncodingUtil.encodeBinary(
                 String.join("\r\n",
-                        HTTPEncodingUtil.decodeBinary(statusLine.getBytes()),
-                        HTTPEncodingUtil.decodeBinary(headers.getBytes()),
-                        HTTPEncodingUtil.decodeBinary(body.getBytes())) );
+                        EncodingUtil.decodeBinary(statusLine.getBytes()),
+                        EncodingUtil.decodeBinary(headers.getBytes()),
+                        EncodingUtil.decodeBinary(body.getBytes())) );
     }
 }

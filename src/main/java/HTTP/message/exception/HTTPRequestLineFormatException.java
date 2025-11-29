@@ -1,4 +1,4 @@
-package HTTP.exception;
+package HTTP.message.exception;
 
 public class HTTPRequestLineFormatException extends HTTPRequestFormatException {
     public HTTPRequestLineFormatException(String message) {

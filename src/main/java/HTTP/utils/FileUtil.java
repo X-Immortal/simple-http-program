@@ -1,12 +1,10 @@
 package HTTP.utils;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.StringJoiner;
 import java.util.TimeZone;
 
 public class FileUtil {
@@ -16,6 +14,15 @@ public class FileUtil {
     public static String getExtension(String filename) {
         int dotIndex = filename.lastIndexOf(".");
         return dotIndex == -1 ? "" : filename.substring(dotIndex + 1);
+    }
+
+    public static String getName(String path) {
+        File file = new File(path);
+        if (file.isDirectory()) {
+            return "";
+        }
+        int slashIndex = path.lastIndexOf(File.separator);
+        return slashIndex == -1 ? path : path.substring(slashIndex + 1);
     }
 
     public static String getTimestamp(String path) throws FileNotFoundException {
@@ -33,25 +40,39 @@ public class FileUtil {
     }
 
     public static String listFiles(String path) {
-        StringBuilder sb = new StringBuilder();
+        StringJoiner joiner = new StringJoiner("\n");
         File file = new File(path);
         File[] files = file.listFiles();
         if (files == null) return "";
         for (File f : files) {
-            sb.append(f.getName()).append("\n");
+            joiner.add(f.getName());
         }
-        return sb.toString();
+        return joiner.toString();
     }
 
     public static byte[] read(String path) throws IOException {
+        File file = new File(path);
+        if (!file.exists()) {
+            throw new FileNotFoundException(path);
+        }
+        if (file.isDirectory()) {
+            throw new IOException("Not a file");
+        }
         try (FileInputStream fis = new FileInputStream(path)) {
-            StringBuilder sb = new StringBuilder();
-            byte[] buf = new byte[1024];
-            int n;
-            while ((n = fis.read(buf)) != -1) {
-                sb.append(new String(buf, 0, n, HTTPEncodingUtil.BINARY_CHARSET));
-            }
-            return HTTPEncodingUtil.encodeBinary(sb.toString());
+            return fis.readAllBytes();
+        }
+    }
+
+    public static void write(String path, byte[] content) throws IOException {
+        File file = new File(path);
+        if (file.isDirectory()) {
+            throw new IOException("Not a file");
+        }
+        if (!file.exists()) {
+            file.createNewFile();
+        }
+        try (FileOutputStream fos = new FileOutputStream(path)) {
+            fos.write(content);
         }
     }
 }

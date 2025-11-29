@@ -1,13 +1,15 @@
 package HTTP.server;
 
-import HTTP.exception.HTTPMethodNotAllowedException;
-import HTTP.exception.HTTPRequestFormatException;
-import HTTP.exception.HTTPResponseFormatException;
+import HTTP.message.exception.HTTPMethodNotAllowedException;
+import HTTP.message.exception.HTTPRequestFormatException;
+import HTTP.message.exception.HTTPResponseFormatException;
 import HTTP.message.HTTPRequest;
 import HTTP.message.HTTPResponse;
 import HTTP.rule.HTTPVersion;
+import HTTP.rule.MIME;
+import HTTP.rule.MIMETypeNotSupportedException;
 import HTTP.utils.FileUtil;
-import HTTP.utils.HTTPEncodingUtil;
+import HTTP.utils.EncodingUtil;
 import TCP.TCPServer;
 
 import java.io.File;
@@ -31,17 +33,6 @@ public class HTTPServer extends TCPServer {
     private final HashMap<String, Function<HTTPRequest, HTTPResponse>> routerMap = new HashMap<>();
     private final HashMap<String, String> redirectMap = new HashMap<>();
 
-    // 支持的MIME类型
-    private static final Map<String, String> typeMap = new HashMap<>();
-
-    static {
-        typeMap.put("html", "text/html");
-        typeMap.put("txt", "text/plain");
-        typeMap.put("json", "application/json");
-        typeMap.put("jpg", "image/jpeg");
-        typeMap.put("png", "image/png");
-    }
-
     {
         routerMap.put("/", this::handleDefault);
         routerMap.put("/register", this::handleRegister);
@@ -64,7 +55,7 @@ public class HTTPServer extends TCPServer {
     }
 
     private byte[] handleRequest(byte[] message) {
-        String messageStr = HTTPEncodingUtil.decodeBinary(message);
+        String messageStr = EncodingUtil.decodeBinary(message);
         HTTPRequest request;
         try {
             request = new HTTPRequest(messageStr);
@@ -93,14 +84,14 @@ public class HTTPServer extends TCPServer {
 
             response.getStatusLine().setVersion(request.getRequestLine().getVersion());
             response.getStatusLine().setStatusCode(200);
-            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length));
             response.getHeaders().add("Server", SERVER_NAME);
             response.getBody().setBody(content);
             return response;
         } catch (FileNotFoundException e) {
             return handleNotFound();
-        } catch (IOException | HTTPResponseFormatException e) {
+        } catch (IOException | HTTPResponseFormatException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
     }
@@ -132,14 +123,17 @@ public class HTTPServer extends TCPServer {
             response.getStatusLine().setStatusCode(200);
             if (file.isDirectory()) {
                 if (!path.endsWith("/")) {
-                    return handleFound(path + "/");
+                    return handleMovedPermanently(path + "/");
                 }
                 String content = FileUtil.listFiles(ROOT_PATH + path);
 
-                response.getHeaders().add("Content-Type", typeMap.get("txt"));
+                response.getHeaders().add("Content-Type", MIME.getType("txt"));
                 response.getHeaders().add("Content-Length", String.valueOf(content.length()));
-                response.getBody().setBody(HTTPEncodingUtil.encodeText(content));
+                response.getBody().setBody(EncodingUtil.encodeText(content));
             } else {
+                if (path.endsWith("/")) {
+                    return handleMovedPermanently(path.substring(0, path.length() - 1));
+                }
                 String timestamp = FileUtil.getTimestamp(ROOT_PATH + path);
 
                 if (request.getHeaders().contains("If-Modified-Since") &&
@@ -154,14 +148,14 @@ public class HTTPServer extends TCPServer {
                     return handleInternalServerError();
                 }
 
-                response.getHeaders().add("Content-Type", typeMap.get(extension));
+                response.getHeaders().add("Content-Type", MIME.getType(extension));
                 response.getHeaders().add("Content-Length", String.valueOf(content.length));
                 response.getHeaders().add("Last-Modified", timestamp);
                 response.getHeaders().add("Cache-Control", "no-cache");
                 response.getBody().setBody(content);
             }
             return response;
-        } catch (HTTPResponseFormatException | IOException e) {
+        } catch (HTTPResponseFormatException | IOException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
     }
@@ -173,11 +167,11 @@ public class HTTPServer extends TCPServer {
 
             response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
             response.getStatusLine().setStatusCode(400);
-            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length));
             response.getBody().setBody(content);
             return response;
-        } catch (HTTPResponseFormatException | IOException e) {
+        } catch (HTTPResponseFormatException | IOException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
     }
@@ -189,11 +183,11 @@ public class HTTPServer extends TCPServer {
 
             response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
             response.getStatusLine().setStatusCode(404);
-            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length));
             response.getBody().setBody(content);
             return response;
-        } catch (HTTPResponseFormatException | IOException e) {
+        } catch (HTTPResponseFormatException | IOException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
     }
@@ -205,7 +199,7 @@ public class HTTPServer extends TCPServer {
 
             response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
             response.getStatusLine().setStatusCode(500);
-            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length));
             response.getBody().setBody(content);
             return response;
@@ -219,16 +213,16 @@ public class HTTPServer extends TCPServer {
         HTTPResponse response = new HTTPResponse();
 
         try {
-            String content = HTTPEncodingUtil.decodeText(FileUtil.read(MSG_BODY_PATH + "405.txt"));
+            String content = EncodingUtil.decodeText(FileUtil.read(MSG_BODY_PATH + "405.txt"));
             content = String.format(content, detail);
 
             response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
             response.getStatusLine().setStatusCode(405);
-            response.getHeaders().add("Content-Type", typeMap.get("txt"));
+            response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length()));
-            response.getBody().setBody(HTTPEncodingUtil.encodeText(content));
+            response.getBody().setBody(EncodingUtil.encodeText(content));
             return response;
-        } catch (IOException | IllegalFormatException | HTTPResponseFormatException e) {
+        } catch (IOException | IllegalFormatException | HTTPResponseFormatException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
     }

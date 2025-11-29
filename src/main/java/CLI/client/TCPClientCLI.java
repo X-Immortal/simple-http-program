@@ -1,5 +1,6 @@
 package CLI.client;
 
+import CLI.Command;
 import TCP.TCPClient;
 import org.apache.commons.text.StringEscapeUtils;
 
@@ -11,56 +12,45 @@ public class TCPClientCLI extends ClientCLI {
     private TCPClient client;
 
     {
-        commands.put("connect", this::connect);
-        commands.put("send", this::send);
-        commands.put("exit", this::exit);
+        commands.put("connect", new Command(1, "connect <url>", "连接到<url>指向的服务器", this::connect));
+        commands.put("send", new Command(1, "send <message>", "发送<message>给服务器，并显示服务器的答复", this::send));
+        commands.put("exit", new Command(0, "exit", "退出程序", this::exit));
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         TCPClientCLI cli = new TCPClientCLI();
         cli.start();
     }
 
     private void connect(org.apache.commons.cli.CommandLine args) {
         String[] argsArr = args.getArgs();
-        if (args.hasOption("h")) {
-            System.out.println("Usage: connect <url> [-h|--help]");
-        } else if (args.getArgs().length == 1) {
-            if (client == null || !client.isReady()) {
-                URL url;
-                try {
-                    url = new URL(argsArr[0]);
-                } catch (MalformedURLException e) {
-                    System.out.println("Invalid url: " + argsArr[0]);
-                    return;
-                }
-                client = new TCPClient(url);
-                client.start();
+        if (client == null || !client.isReady()) {
+            URL url;
+            try {
+                url = new URL(argsArr[0]);
+            } catch (MalformedURLException e) {
+                System.out.println("Invalid url: " + argsArr[0]);
+                return;
             }
-        } else {
-            System.out.println("Invalid arguments");
+            client = new TCPClient(url);
+            client.start();
         }
     }
 
     private void send(org.apache.commons.cli.CommandLine args) {
         String[] argsArr = args.getArgs();
-        if (args.hasOption("h")) {
-            System.out.println("Usage: send <message> [-h|--help]");
-        } else if (args.getArgs().length == 1) {
-            if (client == null || !client.isReady()) {
-                System.out.println("Error: connection closed");
-                return;
-            }
-            try {
-                String arg = argsArr[0].replaceAll("\"", "");
-                arg = StringEscapeUtils.unescapeJava(arg);
-                client.sendMessage(arg.getBytes());
-                System.out.println("Succeeded to send message to server");
-            } catch (IOException e) {
-                System.out.println("Failed to send message to server");
-            }
-        } else {
-            System.out.println("Invalid arguments");
+        if (client == null || !client.isReady()) {
+            System.out.println("Error: connection closed");
+            return;
+        }
+
+        try {
+            String arg = argsArr[0].replaceAll("\"", "");
+            arg = StringEscapeUtils.unescapeJava(arg);
+            client.sendMessage(arg.getBytes());
+            System.out.println("Succeeded to send message to server");
+        } catch (IOException e) {
+            System.out.println("Failed to send message to server");
         }
     }
 
@@ -97,8 +87,6 @@ public class TCPClientCLI extends ClientCLI {
                 }
             }
         });
-
-        receiveThread.setPriority(10);
         receiveThread.start();
     }
 }

@@ -1,9 +1,12 @@
 package TCP;
 
+import HTTP.utils.EncodingUtil;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
 import java.net.URL;
+import java.util.Arrays;
 
 public class TCPClient {
     private Socket clientSocket;
@@ -58,12 +61,23 @@ public class TCPClient {
         InputStream is = clientSocket.getInputStream();
         StringBuilder sb = new StringBuilder();
         while (sb.isEmpty()) {
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[4096];
             int bytesRead;
             while (is.available() > 0 && (bytesRead = is.read(buffer)) != -1) {
-                sb.append(new String(buffer, 0, bytesRead));
+                byte[] data;
+                if (bytesRead == buffer.length) {
+                    data = buffer;
+                } else {
+                    data = Arrays.copyOf(buffer, bytesRead);
+                }
+                sb.append(EncodingUtil.decodeBinary(data));
+                try {
+                    Thread.sleep(5);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
-        return sb.toString().getBytes();
+        return EncodingUtil.encodeBinary(sb.toString());
     }
 }

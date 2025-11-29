@@ -1,5 +1,8 @@
 package HTTP.server.user;
 
+import HTTP.server.user.exception.PasswordFormatException;
+import HTTP.server.user.exception.UsernameFormatException;
+
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
@@ -54,11 +57,6 @@ public class User implements Serializable {
             throw new PasswordFormatException();
         }
         this.password = password;
-    }
-
-    @Override
-    public String toString() {
-        return "User{username = " + username + ", password = " + password + "}";
     }
 
     @Override

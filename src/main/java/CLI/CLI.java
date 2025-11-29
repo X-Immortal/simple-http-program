@@ -1,22 +1,21 @@
 package CLI;
 
-import org.apache.commons.cli.*;
+import org.apache.commons.cli.ParseException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.HashMap;
-import java.util.function.Consumer;
+import java.util.StringJoiner;
 
 public abstract class CLI {
-    protected String name;
+    protected String prompt;
     protected String welcome;
-    protected final Options options = new Options();
-    protected final CommandLineParser parser = new DefaultParser();
-    protected final HashMap<String, Consumer<CommandLine>> commands = new HashMap<>();
+    protected final HashMap<String, Command> commands = new HashMap<>();
 
     {
-        options.addOption("h", "help", false, "显示帮助信息");
+        Command help = new Command(0, "help", "show information of all commands", this::help);
+        commands.put("help", help);
     }
 
     protected void start() {
@@ -43,18 +42,25 @@ public abstract class CLI {
     protected void processCommand(org.apache.commons.exec.CommandLine cmd) {
         String executable = cmd.getExecutable();
         if (commands.containsKey(executable)) {
-            org.apache.commons.cli.CommandLine arguments;
             try {
-                arguments = parser.parse(options, cmd.getArguments());
+                commands.get(executable).handle(cmd.getArguments());
             } catch (ParseException e) {
                 System.out.println("Invalid arguments");
-                return;
             }
-            commands.get(executable).accept(arguments);
+        } else {
+            System.out.println("Invalid command");
         }
     }
 
     protected void printPrompt() {
-        System.out.print(name + "> ");
+        System.out.print(prompt + "> ");
+    }
+
+    protected void help(org.apache.commons.cli.CommandLine args) {
+        StringJoiner joiner = new StringJoiner("\n\n", "Usage:\n", "");
+        commands.forEach((name, command) ->
+            joiner.add(command.getDescription())
+        );
+        System.out.println(joiner);
     }
 }

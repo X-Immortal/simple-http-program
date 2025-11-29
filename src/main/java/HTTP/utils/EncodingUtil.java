@@ -3,11 +3,11 @@ package HTTP.utils;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-public class HTTPEncodingUtil {
+public class EncodingUtil {
     public static final Charset TEXT_CHARSET = StandardCharsets.UTF_8;
     public static final Charset BINARY_CHARSET = StandardCharsets.ISO_8859_1;
 
-    private HTTPEncodingUtil() {}
+    private EncodingUtil() {}
 
     public static String textToBinary(String text) {
         return new String(text.getBytes(TEXT_CHARSET), BINARY_CHARSET);

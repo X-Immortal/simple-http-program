@@ -1,4 +1,4 @@
-package HTTP.exception;
+package HTTP.message.exception;
 
 public class HTTPMethodNotAllowedException extends Exception {
     public HTTPMethodNotAllowedException(String message) {
