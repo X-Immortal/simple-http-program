@@ -1,34 +1,30 @@
 package HTTP.server;
 
+import HTTP.message.HTTPRequest;
+import HTTP.message.HTTPResponse;
 import HTTP.message.exception.HTTPMethodNotAllowedException;
 import HTTP.message.exception.HTTPRequestFormatException;
 import HTTP.message.exception.HTTPResponseFormatException;
-import HTTP.message.HTTPRequest;
-import HTTP.message.HTTPResponse;
 import HTTP.rule.HTTPVersion;
 import HTTP.rule.MIME;
 import HTTP.rule.MIMETypeNotSupportedException;
-import HTTP.utils.FileUtil;
+import HTTP.server.user.UserManager;
+import HTTP.server.user.exception.UserNotExistsException;
 import HTTP.utils.EncodingUtil;
+import HTTP.utils.FileUtil;
 import TCP.TCPServer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.file.FileSystems;
 import java.util.HashMap;
 import java.util.IllegalFormatException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public class HTTPServer extends TCPServer {
-    private static final String PATH_SEPARATOR = FileSystems.getDefault().getSeparator();
-    private static final Map<String, String> sessions = new ConcurrentHashMap<>();
-    private static final String ROOT_PATH = "." + PATH_SEPARATOR + "root" + PATH_SEPARATOR;
+    private static final String ROOT_PATH = System.getProperty("user.dir") + File.separator + "root" + File.separator;
     private static final String DEFAULT_FILE_PATH = ROOT_PATH + "welcome.txt";
-    private static final String MSG_BODY_PATH = ROOT_PATH + "msgbody" + PATH_SEPARATOR;
+    private static final String MSG_BODY_PATH = ROOT_PATH + "msgbody" + File.separator;
     private static final String SERVER_NAME = "Simple HTTP Server";
     private final HashMap<String, Function<HTTPRequest, HTTPResponse>> routerMap = new HashMap<>();
     private final HashMap<String, String> redirectMap = new HashMap<>();
@@ -38,6 +34,7 @@ public class HTTPServer extends TCPServer {
         routerMap.put("/register", this::handleRegister);
         routerMap.put("/login", this::handleLogin);
         routerMap.put("/document", this::handleDocument);
+        routerMap.put("/logout", this::handleLogout);
 
         redirectMap.put("/file", "/document");
     }
@@ -97,67 +94,183 @@ public class HTTPServer extends TCPServer {
     }
 
     private HTTPResponse handleRegister(HTTPRequest request) {
+        HTTPResponse response = new HTTPResponse();
+
         // TODO
-        return handleInternalServerError();
+        String username = null;
+
+
+        try {
+            initUserSpace(username);
+        } catch (UserNotExistsException e) {
+            return handleInternalServerError();
+        }
+        return response;
     }
 
     private HTTPResponse handleLogin(HTTPRequest request) {
+        try {
+            if (request.getRequestLine().getMethod().equals("POST")) {
+                return login(request);
+            }
+
+            if (!request.getRequestLine().getMethod().equals("GET")) {
+                return handleMethodNotAllowed("Only GET and POST methods are allowed");
+            }
+
+            return handleGetLogin();
+        } catch (HTTPResponseFormatException | MIMETypeNotSupportedException e) {
+            return handleInternalServerError();
+        }
+    }
+
+    private HTTPResponse handleGetLogin() throws HTTPResponseFormatException, MIMETypeNotSupportedException {
+        HTTPResponse response = new HTTPResponse();
+        response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+        response.getStatusLine().setStatusCode(200);
+
+        byte[] content = EncodingUtil.encodeText("You need to login first");
+
+        response.getHeaders().add("Content-Type", MIME.getType("json"));
+        response.getHeaders().add("Content-Length", String.valueOf(content.length));
+        response.getBody().setBody(content);
+        return response;
+    }
+
+    private HTTPResponse login(HTTPRequest request) {
+        HTTPResponse response = new HTTPResponse();
+
         // TODO
-        return handleInternalServerError();
+
+
+        return response;
+    }
+
+    private HTTPResponse handleLogout(HTTPRequest request) {
+        String method = request.getRequestLine().getMethod();
+        if (!method.equals("POST")) {
+            return handleMethodNotAllowed("Only POST method is allowed");
+        }
+
+        if (!request.getHeaders().contains("Authorization")) {
+            return handleBadRequest();
+        }
+
+        String token = request.getHeaders().get("Authorization");
+        if (!UserManager.logout(token)) {
+            return handleFound("/login");
+        }
+
+        return handleFound("/");
     }
 
     private HTTPResponse handleDocument(HTTPRequest request) {
-        if (!request.getRequestLine().getMethod().equals("GET")) {
-            return handleMethodNotAllowed("Only GET method is allowed for this resource");
-        }
-
-        HTTPResponse response = new HTTPResponse();
-        String path = request.getRequestLine().getPath();
-        File file = new File(ROOT_PATH + path);
-        if (!file.exists()) {
-            return handleNotFound();
-        }
-
         try {
-            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
-            response.getStatusLine().setStatusCode(200);
-            if (file.isDirectory()) {
-                if (!path.endsWith("/")) {
-                    return handleMovedPermanently(path + "/");
-                }
-                String content = FileUtil.listFiles(ROOT_PATH + path);
-
-                response.getHeaders().add("Content-Type", MIME.getType("txt"));
-                response.getHeaders().add("Content-Length", String.valueOf(content.length()));
-                response.getBody().setBody(EncodingUtil.encodeText(content));
-            } else {
-                if (path.endsWith("/")) {
-                    return handleMovedPermanently(path.substring(0, path.length() - 1));
-                }
-                String timestamp = FileUtil.getTimestamp(ROOT_PATH + path);
-
-                if (request.getHeaders().contains("If-Modified-Since") &&
-                        timestamp.equals(request.getHeaders().get("If-Modified-Since"))) {
-                    return handleNotModified(request);
-                }
-
-                byte[] content = FileUtil.read(ROOT_PATH + path);
-
-                String extension = FileUtil.getExtension(path);
-                if (extension.isEmpty()) {
-                    return handleInternalServerError();
-                }
-
-                response.getHeaders().add("Content-Type", MIME.getType(extension));
-                response.getHeaders().add("Content-Length", String.valueOf(content.length));
-                response.getHeaders().add("Last-Modified", timestamp);
-                response.getHeaders().add("Cache-Control", "no-cache");
-                response.getBody().setBody(content);
+            String method = request.getRequestLine().getMethod();
+            if (!method.equals("GET") && !method.equals("POST")) {
+                return handleMethodNotAllowed("Only GET and POST methods are allowed");
             }
-            return response;
+
+            if (!request.getHeaders().contains("Authorization")) {
+                return handleFound("/login");
+            }
+
+            String token = request.getHeaders().get("Authorization");
+            String path = request.getRequestLine().getPath();
+            if (!token.equals(UserManager.getRootToken())) {
+                String userDir = UserManager.getUserDirByToken(token);
+                path = path.replaceAll("(document)", "$1/" + userDir);
+            }
+
+            if (method.equals("POST")) {
+                return handlePostFile(path, request);
+            }
+
+            File file = new File(ROOT_PATH + path);
+
+            if (!file.exists()) {
+                return handleNotFound();
+            }
+
+            if (file.isDirectory()) {
+                return handleGetDir(path, request);
+            } else {
+                return handleGetFile(path, request);
+            }
         } catch (HTTPResponseFormatException | IOException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
+    }
+
+    private HTTPResponse handleGetFile(String path, HTTPRequest request) throws IOException, MIMETypeNotSupportedException, HTTPResponseFormatException {
+        String clientPath = request.getRequestLine().getPath();
+        if (clientPath.endsWith("/")) {
+            return handleMovedPermanently(clientPath.substring(0, clientPath.length() - 1));
+        }
+
+        String timestamp = FileUtil.getTimestamp(ROOT_PATH + path);
+
+        if (request.getHeaders().contains("If-Modified-Since") &&
+                timestamp.equals(request.getHeaders().get("If-Modified-Since"))) {
+            return handleNotModified(request);
+        }
+
+        byte[] content = FileUtil.read(ROOT_PATH + path);
+
+        String extension = FileUtil.getExtension(path);
+        if (extension.isEmpty()) {
+            return handleInternalServerError();
+        }
+
+        HTTPResponse response = new HTTPResponse();
+
+        response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+        response.getStatusLine().setStatusCode(200);
+        response.getHeaders().add("Content-Type", MIME.getType(extension));
+        response.getHeaders().add("Content-Length", String.valueOf(content.length));
+        response.getHeaders().add("Last-Modified", timestamp);
+        response.getHeaders().add("Cache-Control", "no-cache");
+        response.getBody().setBody(content);
+        return response;
+    }
+
+    private HTTPResponse handlePostFile(String path, HTTPRequest request) throws IOException {
+        String clientPath = request.getRequestLine().getPath();
+        File file = new File(ROOT_PATH + path);
+
+        if (file.isDirectory()) {
+            return handleBadRequest();
+        }
+
+        byte[] content = request.getBody().getBytes();
+        FileUtil.write(ROOT_PATH + path, content);
+        return handleFound(clientPath.substring(0, clientPath.lastIndexOf("/") + 1));
+    }
+
+    private HTTPResponse handleGetDir(String path, HTTPRequest request) throws MIMETypeNotSupportedException, HTTPResponseFormatException {
+        String clientPath = request.getRequestLine().getPath();
+        if (!clientPath.endsWith("/")) {
+            return handleMovedPermanently(clientPath + "/");
+        }
+
+        String content = FileUtil.listFiles(ROOT_PATH + path);
+
+        HTTPResponse response = new HTTPResponse();
+        response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+        response.getStatusLine().setStatusCode(200);
+        response.getHeaders().add("Content-Type", MIME.getType("txt"));
+        response.getHeaders().add("Content-Length", String.valueOf(content.length()));
+        response.getBody().setBody(EncodingUtil.encodeText(content));
+        return response;
+    }
+
+    private void initUserSpace(String username) throws UserNotExistsException {
+        String userDir = UserManager.getUserDirByName(username);
+        if (userDir == null) {
+            throw new UserNotExistsException();
+        }
+        File userSpace = new File(ROOT_PATH + "document" + File.separator + userDir);
+        userSpace.mkdirs();
     }
 
     private HTTPResponse handleBadRequest() {
@@ -228,7 +341,6 @@ public class HTTPServer extends TCPServer {
     }
 
     private HTTPResponse handleMovedPermanently(String path) {
-        // TODO
         HTTPResponse response = new HTTPResponse();
 
         try {
@@ -262,6 +374,7 @@ public class HTTPServer extends TCPServer {
         try {
             response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
             response.getStatusLine().setStatusCode(304);
+            response.getHeaders().add("Content-Length", "0");
             response.getHeaders().add("Last-Modified", request.getHeaders().get("If-Modified-Since"));
             response.getHeaders().add("Cache-Control", "no-cache");
             return response;
@@ -269,126 +382,4 @@ public class HTTPServer extends TCPServer {
             return handleInternalServerError();
         }
     }
-
-//    private void handleRequest(String method, String path, Map<String, String> headers,
-//                               String body, OutputStream out, boolean keepAlive) throws IOException {
-//
-//        // 路由处理
-//        switch (path) {
-//            case "/register":
-//                if ("POST".equalsIgnoreCase(method)) {
-//                    handleRegister(body, out, keepAlive);
-//                } else {
-//                    sendErrorResponse(out, 405, "Method Not Allowed", keepAlive);
-//                }
-//                break;
-//            case "/login":
-//                if ("POST".equalsIgnoreCase(method)) {
-//                    handleLogin(body, out, keepAlive);
-//                } else {
-//                    sendErrorResponse(out, 405, "Method Not Allowed", keepAlive);
-//                }
-//                break;
-//
-//            case "/error":  // 添加触发错误的路由
-//                simulateError(out, keepAlive);
-//                break;
-//        }
-//    }
-
-
-
-//    private void handleRegister(String body, OutputStream out, boolean keepAlive) throws IOException {
-//        try {
-//            Map<String, String> params = parseFormData(body);
-//            String username = params.get("username");
-//            String password = params.get("password");
-//
-//            if (username == null || password == null) {
-//                sendErrorResponse(out, 400, "Missing username or password", keepAlive);
-//                return;
-//            }
-//
-//            if (users.containsKey(username)) {
-//                sendErrorResponse(out, 409, "User already exists", keepAlive);
-//                return;
-//            }
-//
-//            users.put(username, new User(username, password));
-//            sendJsonResponse(out, 200, "{\"message\": \"Registration successful\"}", keepAlive);
-//
-//        } catch (Exception e) {
-//            sendErrorResponse(out, 500, "Internal Server Error", keepAlive);
-//        }
-//    }
-
-//    private void handleLogin(String body, OutputStream out, boolean keepAlive) throws IOException {
-//        try {
-//            Map<String, String> params = parseFormData(body);
-//            String username = params.get("username");
-//            String password = params.get("password");
-//
-//            if (username == null || password == null) {
-//                sendErrorResponse(out, 400, "Missing username or password", keepAlive);
-//                return;
-//            }
-//
-//            User user = users.get(username);
-//            if (user == null || !user.password.equals(password)) {
-//                sendErrorResponse(out, 401, "Invalid credentials", keepAlive);
-//                return;
-//            }
-//
-//            // 创建会话
-//            String sessionId = UUID.randomUUID().toString();
-//            sessions.put(sessionId, username);
-//
-//            Map<String, String> response = new HashMap<>();
-//            response.put("message", "Login successful");
-//            response.put("sessionId", sessionId);
-//
-//            sendJsonResponse(out, 200, toJson(response), keepAlive);
-//
-//        } catch (Exception e) {
-//            sendErrorResponse(out, 500, "Internal Server Error", keepAlive);
-//        }
-//    }
-
-//    private void sendJsonResponse(OutputStream out, int statusCode, String json, boolean keepAlive) throws IOException {
-//        String statusText = getStatusText(statusCode);
-//        String response = "HTTP/1.1 " + statusCode + " " + statusText + "\r\n" +
-//                "Content-Type: application/json\r\n" +
-//                "Content-Length: " + json.length() + "\r\n" +
-//                (keepAlive ? "Connection: keep-alive\r\n" : "Connection: close\r\n") +
-//                "\r\n" + json;
-//
-//        out.write(response.getBytes());
-//        out.flush();
-//    }
-
-    // 辅助方法
-    private Map<String, String> parseFormData(String formData) {
-        Map<String, String> params = new HashMap<>();
-        if (formData != null && !formData.isEmpty()) {
-            String[] pairs = formData.split("&");
-            for (String pair : pairs) {
-                String[] keyValue = pair.split("=");
-                if (keyValue.length == 2) {
-                    params.put(keyValue[0], URLDecoder.decode(keyValue[1]));
-                }
-            }
-        }
-        return params;
-    }
-
-    private String toJson(Map<String, String> map) {
-        StringBuilder json = new StringBuilder("{");
-        for (Map.Entry<String, String> entry : map.entrySet()) {
-            if (json.length() > 1) json.append(",");
-            json.append("\"").append(entry.getKey()).append("\":\"").append(entry.getValue()).append("\"");
-        }
-        json.append("}");
-        return json.toString();
-    }
-
 }

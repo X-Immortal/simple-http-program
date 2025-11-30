@@ -9,8 +9,10 @@ import HTTP.rule.MIMETypeNotSupportedException;
 import HTTP.utils.EncodingUtil;
 import HTTP.utils.FileUtil;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -28,11 +30,23 @@ public class HTTPClientCLI extends ClientCLI {
         commands.put("connect", new Command(1, "connect <url>", "连接到<url>指向的服务器", this::connect));
         commands.put("exit", new Command(0, "exit", "退出程序", this::exit));
         commands.put("refresh", new Command(0, "refresh", "刷新当前页面", this::refresh));
-        commands.put("enter", new Command(1, "enter <url>", "进入<url>指定的页面", this::enter));
         commands.put("login", new Command(0, "login", "登录", this::login));
+        commands.put("logout", new Command(0, "logout", "退出登录", this::logout));
         commands.put("register", new Command(0, "register", "注册", this::register));
-        commands.put("fetch", new Command(1, "fetch <filename>", "从当前页面下载<filename>文件", this::fetch));
-        commands.put("push", new Command(2, "push <filepath> <remote path>", "将<filepath>上传到<remote path>下", this::push));
+
+        Command enter = new Command(-1, "enter <url>", "进入<url>指定的页面", this::enter);
+        enter.addOption("f", "forward", true, "forward to the next page");
+        enter.addOption("b", "back", false, "back to the previous page");
+        enter.addOption("r", "root", false, "enter the page by root privilege");
+        commands.put("enter", enter);
+
+        Command fetch = new Command(1, "fetch <filename>", "从当前页面下载<filename>文件", this::fetch);
+        fetch.addOption("r", "root", false, "enter the page by root privilege");
+        commands.put("fetch", fetch);
+
+        Command push = new Command(2, "push <filepath> <remote path>", "将<filepath>上传到<remote path>下", this::push);
+        push.addOption("r", "root", false, "enter the page by root privilege");
+        commands.put("push", push);
     }
 
     public static void main(String[] args) {
@@ -77,41 +91,88 @@ public class HTTPClientCLI extends ClientCLI {
     }
 
     private void refresh(org.apache.commons.cli.CommandLine args) {
-        if (!checkConnection()) return;
+        if (baseURL == null) {
+            System.out.println("Did not have a connection");
+            return;
+        }
 
         try {
             client.enter(path, (path, response) -> {
                 System.out.println("entered: " + baseURL + path);
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
-            });
-        } catch (HTTPResponseFormatException | IOException e) {
+            }, false);
+        } catch (HTTPResponseFormatException e) {
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
             System.out.println("Client error");
+        } catch (IOException e) {
+            try {
+                client = new HTTPClient(new URL(baseURL));
+                refresh(args);
+            } catch (MalformedURLException ex) {
+                throw new RuntimeException(ex);
+            }
         }
     }
 
     private void enter(org.apache.commons.cli.CommandLine args) {
+        if (args.hasOption('f') && args.hasOption('b')) {
+            System.out.println("Invalid options");
+            return;
+        }
+
         String[] argsArr = args.getArgs();
-        if (client == null) {
-            connect(argsArr[0]);
+        if ((args.hasOption('f') || args.hasOption('b')) &&
+                (client == null || argsArr.length != 0)) {
+            System.out.println("Invalid arguments");
+            return;
         }
-        if (!client.isReady()) {
-            client.start();
+        if (!args.hasOption('f') && !args.hasOption('b') && argsArr.length != 1) {
+            System.out.println("Invalid arguments");
+            return;
         }
-        try {
-            URL url = new URL(argsArr[0]);
-            String path = url.getPath();
+
+        String path;
+        if (args.hasOption('f')) {
+            if (!this.path.endsWith("/")) {
+                System.out.println("You are not in a directory, cannot get forward");
+                return;
+            }
+            path = this.path + args.getOptionValue('f').replaceAll("^/", "");
+        } else if (args.hasOption('b')) {
+            if (this.path.equals("/")) {
+                System.out.println("You are already in the root directory, cannot get back");
+                return;
+            }
+            path = this.path.replaceAll("/$", "");
+            path = path.substring(0, path.lastIndexOf("/") + 1);
+        } else {
+            if (client == null) {
+                connect(argsArr[0]);
+            }
+
+            try {
+                path = new URL(argsArr[0]).getPath();
+            } catch (MalformedURLException e) {
+                System.out.println("Invalid url: " + argsArr[0]);
+                return;
+            }
+
             if (path.isEmpty()) {
                 path = "/";
             }
+        }
+
+        if (!client.isReady()) {
+            client.start();
+        }
+
+        try {
             client.enter(path, (finalPath, response) -> {
                 System.out.println("entered:" + baseURL + finalPath);
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
                 this.path = finalPath;
-            });
-        } catch (MalformedURLException e) {
-            System.out.println("Invalid url: " + argsArr[0]);
+            }, args.hasOption("r"));
         } catch (HTTPResponseFormatException | IOException e) {
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
@@ -135,7 +196,6 @@ public class HTTPClientCLI extends ClientCLI {
         try {
             client.enter(path + argsArr[0], (finalPath, response) -> {
                 System.out.println("current: " + baseURL + path);
-//                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
                 if (response.getStatusLine().getStatusCode() != 200) {
                     System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
                     System.out.println("Fetch " + baseURL + finalPath + " failed");
@@ -148,9 +208,8 @@ public class HTTPClientCLI extends ClientCLI {
                 }
                 System.out.println("Fetch " + baseURL + finalPath + " successfully");
                 System.out.println("You can view it in " + CACHE_DIR);
-            });
+            }, args.hasOption("r"));
         } catch (HTTPResponseFormatException | IOException e) {
-//            e.printStackTrace();
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
             System.out.println("Client error");
@@ -178,6 +237,7 @@ public class HTTPClientCLI extends ClientCLI {
         try {
             client.push(argsArr[1] + FileUtil.getName(argsArr[0]), FileUtil.read(argsArr[0]),
                     (finalPath, response) -> {
+                path = finalPath;
                 System.out.println("entered: " + baseURL + finalPath);
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
                 if (response.getStatusLine().getStatusCode() != 200) {
@@ -185,11 +245,10 @@ public class HTTPClientCLI extends ClientCLI {
                     return;
                 }
                 System.out.println("Push " + argsArr[0] + " successfully");
-            });
+            }, args.hasOption("r"));
         } catch (HTTPResponseFormatException | IOException e) {
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
-            e.printStackTrace();
             System.out.println("Client error");
         } catch (MIMETypeNotSupportedException e) {
             System.out.println("Unsupported file type");
@@ -197,11 +256,124 @@ public class HTTPClientCLI extends ClientCLI {
     }
 
     private void login(org.apache.commons.cli.CommandLine args) {
-        System.out.println("Not implemented");
+        if (!checkConnection()) return;
+
+        int maxTimes = 3;
+        String username, password;
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+
+        while (true) {
+            if (--maxTimes < 0) {
+                System.out.println("Too many attempts");
+                return;
+            }
+            System.out.print("your username: ");
+            try {
+                username = br.readLine();
+                if (username.isEmpty()) {
+                    continue;
+                }
+                password = br.readLine();
+                if (password.isEmpty()) {
+                    continue;
+                }
+                break;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        try {
+            client.login(username, password, (finalPath, response) -> {
+                path = finalPath;
+                if (response.getStatusLine().getStatusCode() != 200) {
+                    System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                    System.out.println("Login failed");
+                    return;
+                }
+                System.out.println("Login successfully");
+                System.out.println("current: " + baseURL + path);
+                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+            });
+        } catch (HTTPResponseFormatException | IOException e) {
+            System.out.println("transmission failed");
+        } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException | MIMETypeNotSupportedException e) {
+            System.out.println("Client error");
+        }
     }
 
     private void register(org.apache.commons.cli.CommandLine args) {
-        System.out.println("Not implemented");
+        if (!checkConnection()) return;
+
+        int maxTimes = 3;
+        String username, password, confirm;
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+
+        while (true) {
+            if (--maxTimes < 0) {
+                System.out.println("Too many attempts");
+                return;
+            }
+            System.out.print("your username: ");
+            try {
+                username = br.readLine();
+                if (username.isEmpty()) {
+                    continue;
+                }
+                password = br.readLine();
+                if (password.isEmpty()) {
+                    continue;
+                }
+                confirm = br.readLine();
+                if (!password.equals(confirm)) {
+                    System.out.println("Password does not match");
+                    continue;
+                }
+                break;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        try {
+            client.register(username, password, (finalPath, response) -> {
+                path = finalPath;
+                if (response.getStatusLine().getStatusCode() != 200) {
+                    System.out.println("Register failed");
+                    System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                    return;
+                }
+                System.out.println("Register successfully");
+                System.out.println("current: " + baseURL + path);
+                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+            });
+        } catch (HTTPResponseFormatException | IOException e) {
+            System.out.println("transmission failed");
+        } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException | MIMETypeNotSupportedException e) {
+            System.out.println("Client error");
+        }
+    }
+
+    private void logout(org.apache.commons.cli.CommandLine args) {
+        if (!checkConnection()) return;
+
+        try {
+            client.logout((finalPath, response) -> {
+                path = finalPath;
+                if (response.getStatusLine().getStatusCode() != 200) {
+                    System.out.println("Logout failed");
+                    System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                    return;
+                }
+                System.out.println("Logout successfully");
+                System.out.println("current: " + baseURL + path);
+                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+            });
+        } catch (HTTPResponseFormatException | IOException e) {
+            System.out.println("transmission failed");
+        } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException | MIMETypeNotSupportedException e) {
+            System.out.println("Client error");
+        }
     }
 
     void exit(org.apache.commons.cli.CommandLine args) {

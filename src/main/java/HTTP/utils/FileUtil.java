@@ -39,6 +39,18 @@ public class FileUtil {
         return dateFormat.format(lastModified);
     }
 
+
+    public static String listFiles(String path, FileFilter filter) {
+        StringJoiner joiner = new StringJoiner("\n");
+        File file = new File(path);
+        File[] files = file.listFiles(filter);
+        if (files == null) return "";
+        for (File f : files) {
+            joiner.add(f.getName());
+        }
+        return joiner.toString();
+    }
+
     public static String listFiles(String path) {
         StringJoiner joiner = new StringJoiner("\n");
         File file = new File(path);
@@ -68,9 +80,10 @@ public class FileUtil {
         if (file.isDirectory()) {
             throw new IOException("Not a file");
         }
-        if (!file.exists()) {
-            file.createNewFile();
-        }
+
+        new File(file.getParent()).mkdirs();
+        file.createNewFile();
+
         try (FileOutputStream fos = new FileOutputStream(path)) {
             fos.write(content);
         }

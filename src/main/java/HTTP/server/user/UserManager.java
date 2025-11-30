@@ -1,19 +1,23 @@
 package HTTP.server.user;
 
+import HTTP.server.user.exception.PasswordException;
 import HTTP.server.user.exception.PasswordFormatException;
 import HTTP.server.user.exception.UserNotExistsException;
 import HTTP.server.user.exception.UsernameFormatException;
 
 import java.io.*;
 import java.util.StringJoiner;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class UserManager {
     private UserManager() {}
 
-    private final static ConcurrentHashMap<String, User> currentUsers = new ConcurrentHashMap<>();
+    private final static ConcurrentHashMap<String, String> currentUsers = new ConcurrentHashMap<>();
     private static ConcurrentHashMap<String, User> users;
     private static String USERS_PATH;
+    private static User root;
+    private static final String ROOT_TOKEN = "80aea92e-b9c2-4efd-8f18-a2c64d9b737f";
 
     static {
         getUserPath();
@@ -26,18 +30,25 @@ public class UserManager {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+            try {
+                root = new User("root", "Root1234");
+            } catch (UsernameFormatException | PasswordFormatException e) {
+                throw new RuntimeException(e);
+            }
             users = new ConcurrentHashMap<>();
+            users.put("root", root);
+            saveUsers();
         } else {
             loadUsers();
         }
     }
 
-    public static boolean isLoggedIn(String username) throws UserNotExistsException {
-        if (!users.containsKey(username)) {
+    public static boolean isLoggedIn(String token) throws UserNotExistsException {
+        if (!users.containsKey(token)) {
             throw new UserNotExistsException();
         }
 
-        return currentUsers.containsKey(username);
+        return currentUsers.containsKey(token);
     }
 
     public static boolean register(String username, String password) throws PasswordFormatException, UsernameFormatException {
@@ -50,35 +61,58 @@ public class UserManager {
         return true;
     }
 
-    public static boolean login(String username) throws UserNotExistsException {
+    public static String login(String username, String password) throws UserNotExistsException, PasswordException {
         if (!users.containsKey(username)) {
             throw new UserNotExistsException();
         }
 
-        if (currentUsers.containsKey(username)) {
+        if (currentUsers.containsValue(username)) {
+            return null;
+        }
+
+        if (!users.get(username).getPassword().equals(password)) {
+            throw new PasswordException("password error");
+        }
+
+        String token = getToken();
+        currentUsers.put(token, username);
+        return token;
+    }
+
+    public static boolean logout(String token) {
+        if (!currentUsers.containsKey(token)) {
             return false;
         }
 
-        currentUsers.put(username, users.get(username));
+        currentUsers.remove(token);
         return true;
     }
 
-    public static boolean logout(String username) throws UserNotExistsException {
+    public static String getUserDirByName(String username) {
         if (!users.containsKey(username)) {
-            throw new UserNotExistsException();
+            return null;
         }
+        User user = users.get(username);
+        return String.valueOf(user.hashCode()).substring(0, 7);
+    }
 
-        if (!currentUsers.containsKey(username)) {
-            return false;
+    public static String getUserDirByToken(String token) {
+        if (!currentUsers.containsKey(token)) {
+            return null;
         }
+        String username = currentUsers.get(token);
+        User user = users.get(username);
+        return String.valueOf(user.hashCode()).substring(0, 7);
+    }
 
-        currentUsers.remove(username);
-        return true;
+    public static String getRootToken() {
+        return ROOT_TOKEN;
     }
 
     private static void loadUsers() {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(USERS_PATH))) {
             users = (ConcurrentHashMap<String, User>) ois.readObject();
+            root = users.get("root");
         } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
@@ -97,5 +131,9 @@ public class UserManager {
         StringJoiner joiner = new StringJoiner(File.separator);
         joiner.add(workingDir).add(".data").add("users");
         USERS_PATH = joiner.toString();
+    }
+
+    private static String getToken() {
+        return UUID.randomUUID().toString();
     }
 }

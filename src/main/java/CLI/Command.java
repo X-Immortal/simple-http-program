@@ -36,7 +36,7 @@ public class Command {
             return;
         }
 
-        if (arguments.getArgs().length != argsNum) {
+        if (argsNum >= 0 && arguments.getArgs().length != argsNum) {
             System.out.println("Invalid argument number");
             return;
         }
@@ -54,15 +54,18 @@ public class Command {
                         .append(option.getLongOpt())
                         .append("]")
         );
-        options.getOptions().forEach(option ->
-                sb.append('\n')
-                        .append("  -")
-                        .append(option.getOpt())
-                        .append("|--")
-                        .append(option.getLongOpt())
-                        .append(": ")
-                        .append(option.getDescription())
-        );
+        options.getOptions().forEach(option -> {
+            sb.append('\n')
+                    .append("  -")
+                    .append(option.getOpt())
+                    .append("|--")
+                    .append(option.getLongOpt());
+            if (option.hasArg()) {
+                sb.append(" <arg>");
+            }
+            sb.append(": ")
+                    .append(option.getDescription());
+        });
         sb.append("\ndescription: ").append(description);
         return sb.toString();
     }

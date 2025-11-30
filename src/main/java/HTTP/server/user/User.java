@@ -6,6 +6,7 @@ import HTTP.server.user.exception.UsernameFormatException;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
+import java.util.Random;
 
 public class User implements Serializable {
     @Serial
@@ -15,11 +16,9 @@ public class User implements Serializable {
     // 密码只能且必须包含大小写字母和数字，长度为8-20
     // .*表示全局扫描，(?=.*[])表示检查整个串中是否包含[]中的内容
     private static final String PASSWORD_FORMAT = "(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])[\\w&&[^_]]{8,20}";
-    private String username;
+    private final String username;
     private String password;
-
-    public User() {
-    }
+    private final int userid;
 
     public User(String username, String password) throws UsernameFormatException, PasswordFormatException {
         if (!username.matches(USERNAME_FORMAT)) {
@@ -30,6 +29,7 @@ public class User implements Serializable {
         }
         this.username = username;
         this.password = password;
+        userid = new Random().nextInt();
     }
 
     /**
@@ -67,6 +67,6 @@ public class User implements Serializable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(username, password);
+        return Objects.hash(username, password, userid);
     }
 }

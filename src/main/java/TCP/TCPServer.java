@@ -1,8 +1,11 @@
 package TCP;
 
+import HTTP.utils.EncodingUtil;
+
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -105,7 +108,6 @@ public class TCPServer {
         }
 
         protected void receiveMessage() throws IOException {
-            // TODO: 实现TCP消息接收
             if (!isReady()) {
                 throw new IOException("Client socket is not ready");
             }
@@ -114,9 +116,20 @@ public class TCPServer {
             byte[] buffer = new byte[1024];
             int bytesRead;
             while (is.available() > 0 && (bytesRead = is.read(buffer)) != -1) {
-                sb.append(new String(buffer, 0, bytesRead));
+                byte[] data;
+                if (bytesRead == buffer.length) {
+                    data = buffer;
+                } else {
+                    data = Arrays.copyOf(buffer, bytesRead);
+                }
+                sb.append(EncodingUtil.decodeBinary(data));
+                try {
+                    Thread.sleep(5);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
-            receivedMessage = sb.toString().getBytes();
+            receivedMessage = EncodingUtil.encodeBinary(sb.toString());
         }
 
         protected void sendMessage() throws IOException {
