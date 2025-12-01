@@ -196,7 +196,8 @@ public class HTTPClientCLI extends ClientCLI {
         try {
             client.enter(path + argsArr[0], (finalPath, response) -> {
                 System.out.println("current: " + baseURL + path);
-                if (response.getStatusLine().getStatusCode() != 200) {
+                if (!finalPath.equals(path + argsArr[0]) ||
+                        response.getStatusLine().getStatusCode() != 200) {
                     System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
                     System.out.println("Fetch " + baseURL + finalPath + " failed");
                     return;
@@ -240,7 +241,8 @@ public class HTTPClientCLI extends ClientCLI {
                 path = finalPath;
                 System.out.println("entered: " + baseURL + finalPath);
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
-                if (response.getStatusLine().getStatusCode() != 200) {
+                if (!finalPath.equals(path + argsArr[0]) ||
+                        response.getStatusLine().getStatusCode() != 200) {
                     System.out.println("Push " + argsArr[0] + " failed");
                     return;
                 }
