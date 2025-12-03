@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Random;
 
 public class User implements Serializable {
-    @Serial
     private static final long serialVersionUID = 3435220335721232368L;
     // 用户名只能包含中文、英文字母、数字、下划线，且不能以数字开头，长度为4-16
     private static final String USERNAME_FORMAT = "([\\u4E00-\\u9FA5]|[\\w&&\\D])[\\u4E00-\\u9FA5\\w]{3,15}";
@@ -61,8 +60,8 @@ public class User implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof User user)) return false;
-        return Objects.equals(username, user.username) && Objects.equals(password, user.password);
+        if (!(o instanceof User)) return false;
+        return Objects.equals(username, ((User) o).username) && Objects.equals(password, ((User) o).password);
     }
 
     @Override
