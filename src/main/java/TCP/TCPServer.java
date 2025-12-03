@@ -5,6 +5,8 @@ import HTTP.utils.EncodingUtil;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -84,6 +86,11 @@ public class TCPServer {
         public TCPClientHandler(Socket socket, Function<byte[], byte[]> handler) {
             this.clientSocket = socket;
             this.handler = handler;
+            try {
+                clientSocket.setSoTimeout(100);
+            } catch (SocketException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -92,18 +99,12 @@ public class TCPServer {
                 while (isReady()) {
                     receiveMessage();
                     if (receivedMessage == null || receivedMessage.length == 0) {
-                        try {
-                            Thread.sleep(100);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
                         continue;
                     }
                     sentMessage = handler.apply(receivedMessage);
                     sendMessage();
                 }
-            } catch (IOException e) {
-                e.printStackTrace();
+            } catch (IOException ignored) {
             }
         }
 
@@ -115,7 +116,17 @@ public class TCPServer {
             StringBuilder sb = new StringBuilder();
             byte[] buffer = new byte[1024];
             int bytesRead;
-            while (is.available() > 0 && (bytesRead = is.read(buffer)) != -1) {
+            while (true) {
+                try {
+                    bytesRead = is.read(buffer);
+                } catch (SocketTimeoutException e) {
+                    break;
+                }
+                if (bytesRead == -1) {
+                    clientSocket.close();
+                    receivedMessage = null;
+                    return;
+                }
                 byte[] data;
                 if (bytesRead == buffer.length) {
                     data = buffer;
@@ -134,7 +145,7 @@ public class TCPServer {
 
         protected void sendMessage() throws IOException {
             if (!isReady()) {
-                throw new RuntimeException("Client socket is not ready");
+                throw new IOException("Client socket is not ready");
             }
             if (sentMessage == null) return;
             OutputStream os = clientSocket.getOutputStream();
@@ -144,7 +155,7 @@ public class TCPServer {
         }
 
         protected boolean isReady() {
-            return clientSocket != null && !clientSocket.isClosed();
+            return clientSocket != null && !clientSocket.isClosed() && clientSocket.isConnected();
         }
     }
 }

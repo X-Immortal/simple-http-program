@@ -14,6 +14,7 @@ import HTTP.utils.FileUtil;
 import TCP.TCPClient;
 
 import java.io.IOException;
+import java.net.SocketException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.function.BiConsumer;
@@ -74,9 +75,8 @@ public final class HTTPClient extends TCPClient {
     public void enter(String path, BiConsumer<String, HTTPResponse> handler, boolean isRoot)
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
             HTTPResponseFormatException, IOException {
-        if (!isReady()) {
-            start();
-        }
+        start();
+        if (!isReady()) throw new SocketException("Not connected");
 
         HTTPRequest request = new HTTPRequest();
         request.getRequestLine().setMethod("GET");
@@ -100,9 +100,8 @@ public final class HTTPClient extends TCPClient {
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
             HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
             IllegalArgumentException {
-        if (!isReady()) {
-            start();
-        }
+        start();
+        if (!isReady()) throw new SocketException("Not connected");
 
         if (path.endsWith("/")) {
             throw new IllegalArgumentException("Not a file");
@@ -137,9 +136,8 @@ public final class HTTPClient extends TCPClient {
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
                 HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
                 IllegalArgumentException {
-        if (!isReady()) {
-            start();
-        }
+        start();
+        if (!isReady()) throw new SocketException("Not connected");
 
         HTTPRequest request = new HTTPRequest();
         request.getRequestLine().setMethod("POST");

@@ -106,11 +106,11 @@ public class HTTPClientCLI extends ClientCLI {
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
             System.out.println("Client error");
         } catch (IOException e) {
-            try {
-                client = new HTTPClient(new URL(baseURL));
+            connect(baseURL);
+            if (!isReady()) {
+                System.out.println("transmission failed");
+            } else {
                 refresh(args);
-            } catch (MalformedURLException ex) {
-                throw new RuntimeException(ex);
             }
         }
     }
@@ -269,12 +269,13 @@ public class HTTPClientCLI extends ClientCLI {
                 System.out.println("Too many attempts");
                 return;
             }
-            System.out.print("your username: ");
             try {
+                System.out.print("your username: ");
                 username = br.readLine();
                 if (username.isEmpty()) {
                     continue;
                 }
+                System.out.print("your password: ");
                 password = br.readLine();
                 if (password.isEmpty()) {
                     continue;
@@ -316,16 +317,18 @@ public class HTTPClientCLI extends ClientCLI {
                 System.out.println("Too many attempts");
                 return;
             }
-            System.out.print("your username: ");
             try {
+                System.out.print("your username: ");
                 username = br.readLine();
                 if (username.isEmpty()) {
                     continue;
                 }
+                System.out.print("your password: ");
                 password = br.readLine();
                 if (password.isEmpty()) {
                     continue;
                 }
+                System.out.print("confirm your password: ");
                 confirm = br.readLine();
                 if (!password.equals(confirm)) {
                     System.out.println("Password does not match");
