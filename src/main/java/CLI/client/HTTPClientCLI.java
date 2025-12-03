@@ -27,12 +27,14 @@ public class HTTPClientCLI extends ClientCLI {
         File file = new File(CACHE_DIR);
         file.mkdirs();
 
-        commands.put("connect", new Command(1, "connect <url>", "连接到<url>指向的服务器", this::connect));
         commands.put("exit", new Command(0, "exit", "退出程序", this::exit));
-        commands.put("refresh", new Command(0, "refresh", "刷新当前页面", this::refresh));
         commands.put("login", new Command(0, "login", "登录", this::login));
         commands.put("logout", new Command(0, "logout", "退出登录", this::logout));
         commands.put("register", new Command(0, "register", "注册", this::register));
+
+        Command refresh = new Command(0, "refresh", "刷新当前页面", this::refresh);
+        refresh.addOption("r", "root", false, "enter the page by root privilege");
+        commands.put("refresh", refresh);
 
         Command enter = new Command(-1, "enter <url>", "进入<url>指定的页面", this::enter);
         enter.addOption("f", "forward", true, "forward to the next page");
@@ -52,26 +54,6 @@ public class HTTPClientCLI extends ClientCLI {
     public static void main(String[] args) {
         HTTPClientCLI cli = new HTTPClientCLI();
         cli.start();
-    }
-
-    private void connect(org.apache.commons.cli.CommandLine args) {
-        if (isReady()) {
-            System.out.println("Already connected");
-        }
-
-        String[] argsArr = args.getArgs();
-        connect(argsArr[0]);
-        try {
-            client.connect((path, response) -> {
-                System.out.println("entered: " + baseURL + path);
-                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
-                this.path = path;
-            });
-        } catch (HTTPResponseFormatException | IOException e) {
-            System.out.println("transmission failed");
-        } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
-            System.out.println("Client error");
-        }
     }
 
     private void connect(String urlStr) {
@@ -100,7 +82,7 @@ public class HTTPClientCLI extends ClientCLI {
             client.enter(path, (path, response) -> {
                 System.out.println("entered: " + baseURL + path);
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
-            }, false);
+            }, args.hasOption("r"));
         } catch (HTTPResponseFormatException e) {
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
@@ -134,16 +116,8 @@ public class HTTPClientCLI extends ClientCLI {
 
         String path;
         if (args.hasOption('f')) {
-            if (!this.path.endsWith("/")) {
-                System.out.println("You are not in a directory, cannot get forward");
-                return;
-            }
             path = this.path + args.getOptionValue('f').replaceAll("^/", "");
         } else if (args.hasOption('b')) {
-            if (this.path.equals("/")) {
-                System.out.println("You are already in the root directory, cannot get back");
-                return;
-            }
             path = this.path.replaceAll("/$", "");
             path = path.substring(0, path.lastIndexOf("/") + 1);
         } else {
@@ -182,16 +156,8 @@ public class HTTPClientCLI extends ClientCLI {
 
     private void fetch(org.apache.commons.cli.CommandLine args) {
         if (!checkConnection()) return;
-        if (!path.endsWith("/")) {
-            System.out.println("You are not in a directory, cannot use fetch");
-            return;
-        }
 
         String[] argsArr = args.getArgs();
-        if (argsArr[0].equals("/")) {
-            System.out.println("Invalid filename");
-            return;
-        }
 
         try {
             client.enter(path + argsArr[0], (finalPath, response) -> {
@@ -227,21 +193,18 @@ public class HTTPClientCLI extends ClientCLI {
         String[] argsArr = args.getArgs();
         argsArr[0] = argsArr[0].replaceAll("^\\.[\\\\/]?", CACHE_DIR.replaceAll("\\\\", "\\\\\\\\"));
         argsArr[1] = argsArr[1].replaceAll("^\\.[\\\\/]?", path);
-        if (argsArr[0].endsWith("/")) {
-            System.out.println("Invalid filepath");
-            return;
-        }
         if (!argsArr[1].endsWith("/")) {
             argsArr[1] += "/";
         }
+        String targetPath = argsArr[1] + FileUtil.getName(argsArr[0]);
 
         try {
-            client.push(argsArr[1] + FileUtil.getName(argsArr[0]), FileUtil.read(argsArr[0]),
+            client.push(targetPath, FileUtil.read(argsArr[0]),
                     (finalPath, response) -> {
                 path = finalPath;
                 System.out.println("entered: " + baseURL + finalPath);
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
-                if (!finalPath.equals(path + argsArr[0]) ||
+                if (!finalPath.equals(targetPath) ||
                         response.getStatusLine().getStatusCode() != 200) {
                     System.out.println("Push " + argsArr[0] + " failed");
                     return;
