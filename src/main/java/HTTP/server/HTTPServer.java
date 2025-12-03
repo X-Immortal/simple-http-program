@@ -10,8 +10,8 @@ import HTTP.rule.MIME;
 import HTTP.rule.MIMETypeNotSupportedException;
 import HTTP.server.user.UserManager;
 import HTTP.server.user.exception.UserNotExistsException;
-import HTTP.utils.EncodingUtil;
-import HTTP.utils.FileUtil;
+import utils.EncodingUtil;
+import utils.FileUtil;
 import TCP.TCPServer;
 
 import java.io.File;
@@ -55,7 +55,6 @@ public class HTTPServer extends TCPServer {
         try {
             request = new HTTPRequest(messageStr);
         } catch (HTTPRequestFormatException e) {
-            e.printStackTrace();
             return handleBadRequest().getBytes();
         } catch (HTTPMethodNotAllowedException e) {
             return handleMethodNotAllowed(e.getMessage()).getBytes();
@@ -83,7 +82,7 @@ public class HTTPServer extends TCPServer {
 
             response.getStatusLine().setVersion(request.getRequestLine().getVersion());
             response.getStatusLine().setStatusCode(200);
-            response.getHeaders().add("Content-Type", MIME.getType("txt"));
+            response.getHeaders().add("Content-Type", MIME.getType(FileUtil.getExtension(DEFAULT_FILE_PATH)));
             response.getHeaders().add("Content-Length", String.valueOf(content.length));
             response.getHeaders().add("Server", SERVER_NAME);
             response.getBody().setBody(content);
@@ -135,6 +134,7 @@ public class HTTPServer extends TCPServer {
 
         response.getHeaders().add("Content-Type", MIME.getType("json"));
         response.getHeaders().add("Content-Length", String.valueOf(content.length));
+        response.getHeaders().add("Server", SERVER_NAME);
         response.getBody().setBody(content);
         return response;
     }
@@ -232,6 +232,7 @@ public class HTTPServer extends TCPServer {
         response.getHeaders().add("Content-Length", String.valueOf(content.length));
         response.getHeaders().add("Last-Modified", timestamp);
         response.getHeaders().add("Cache-Control", "no-cache");
+        response.getHeaders().add("Server", SERVER_NAME);
         response.getBody().setBody(content);
         return response;
     }
@@ -262,6 +263,7 @@ public class HTTPServer extends TCPServer {
         response.getStatusLine().setStatusCode(200);
         response.getHeaders().add("Content-Type", MIME.getType("txt"));
         response.getHeaders().add("Content-Length", String.valueOf(content.length()));
+        response.getHeaders().add("Server", SERVER_NAME);
         response.getBody().setBody(EncodingUtil.encodeText(content));
         return response;
     }
@@ -284,6 +286,7 @@ public class HTTPServer extends TCPServer {
             response.getStatusLine().setStatusCode(400);
             response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length));
+            response.getHeaders().add("Server", SERVER_NAME);
             response.getBody().setBody(content);
             return response;
         } catch (HTTPResponseFormatException | IOException | MIMETypeNotSupportedException e) {
@@ -300,6 +303,7 @@ public class HTTPServer extends TCPServer {
             response.getStatusLine().setStatusCode(404);
             response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length));
+            response.getHeaders().add("Server", SERVER_NAME);
             response.getBody().setBody(content);
             return response;
         } catch (HTTPResponseFormatException | IOException | MIMETypeNotSupportedException e) {
@@ -320,6 +324,7 @@ public class HTTPServer extends TCPServer {
             response.getStatusLine().setStatusCode(500);
             response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length));
+            response.getHeaders().add("Server", SERVER_NAME);
             response.getBody().setBody(content);
             return response;
         } catch (Exception e) {
@@ -339,6 +344,7 @@ public class HTTPServer extends TCPServer {
             response.getStatusLine().setStatusCode(405);
             response.getHeaders().add("Content-Type", MIME.getType("txt"));
             response.getHeaders().add("Content-Length", String.valueOf(content.length()));
+            response.getHeaders().add("Server", SERVER_NAME);
             response.getBody().setBody(EncodingUtil.encodeText(content));
             return response;
         } catch (IOException | IllegalFormatException | HTTPResponseFormatException | MIMETypeNotSupportedException e) {
@@ -354,6 +360,7 @@ public class HTTPServer extends TCPServer {
             response.getStatusLine().setStatusCode(301);
             response.getHeaders().add("Location", path);
             response.getHeaders().add("Content-Length", "0");
+            response.getHeaders().add("Server", SERVER_NAME);
             return response;
         } catch (HTTPResponseFormatException e) {
             return handleInternalServerError();
@@ -368,6 +375,7 @@ public class HTTPServer extends TCPServer {
             response.getStatusLine().setStatusCode(302);
             response.getHeaders().add("Location", location);
             response.getHeaders().add("Content-Length", "0");
+            response.getHeaders().add("Server", SERVER_NAME);
             return response;
         } catch (HTTPResponseFormatException e) {
             return handleInternalServerError();
@@ -383,6 +391,7 @@ public class HTTPServer extends TCPServer {
             response.getHeaders().add("Content-Length", "0");
             response.getHeaders().add("Last-Modified", request.getHeaders().get("If-Modified-Since"));
             response.getHeaders().add("Cache-Control", "no-cache");
+            response.getHeaders().add("Server", SERVER_NAME);
             return response;
         } catch (HTTPResponseFormatException e) {
             return handleInternalServerError();

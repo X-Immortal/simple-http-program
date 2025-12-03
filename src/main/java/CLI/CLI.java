@@ -1,49 +1,73 @@
 package CLI;
 
 import org.apache.commons.cli.ParseException;
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
+import org.jline.reader.ParsedLine;
+import org.jline.reader.Parser;
+import org.jline.reader.impl.DefaultParser;
+import org.jline.reader.impl.history.DefaultHistory;
+import org.jline.terminal.Terminal;
+import org.jline.terminal.TerminalBuilder;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.HashMap;
+import java.util.List;
 import java.util.StringJoiner;
 
 public abstract class CLI {
     protected String prompt;
     protected String welcome;
+    protected final Terminal terminal;
+    protected final LineReader reader;
+    protected final Parser parser = new DefaultParser();
     protected final HashMap<String, Command> commands = new HashMap<>();
 
     {
+        try {
+            terminal = TerminalBuilder.builder()
+                    .jansi(true)
+                    .jna(true)
+                    .system(true)
+                    .build();
+            reader = LineReaderBuilder.builder()
+                    .terminal(terminal)
+                    .history(new DefaultHistory())
+                    .parser(parser)
+                    .build();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
         Command help = new Command(0, "help", "show information of all commands", this::help);
         commands.put("help", help);
     }
 
     protected void start() {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
         new Thread(() -> {
             System.out.println("=====" + welcome + "=====");
 
             while (true) {
-                printPrompt();
                 String input;
-                try {
-                    input = br.readLine().trim();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                input = reader.readLine(prompt + "> ");
 
                 if (input.isEmpty()) continue;
-                processCommand(org.apache.commons.exec.CommandLine.parse(input));
+                try {
+                    processCommand(parser.parse(input, 0, Parser.ParseContext.COMPLETE));
+                } catch (IllegalArgumentException e) {
+                    System.out.println("Invalid argument");
+                }
             }
         }).start();
     }
 
-    protected void processCommand(org.apache.commons.exec.CommandLine cmd) {
-        String executable = cmd.getExecutable();
+    protected void processCommand(ParsedLine cmd) {
+        String executable = cmd.word();
         if (commands.containsKey(executable)) {
             try {
-                commands.get(executable).handle(cmd.getArguments());
+                List<String> words = cmd.words();
+                commands.get(executable).handle(words.subList(1, words.size()).toArray(String[]::new));
             } catch (ParseException e) {
                 System.out.println("Invalid arguments");
             }

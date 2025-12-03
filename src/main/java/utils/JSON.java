@@ -1,4 +1,4 @@
-package HTTP.utils;
+package utils;
 
 import org.json.JSONObject;
 

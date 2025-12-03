@@ -1,6 +1,6 @@
 package TCP;
 
-import HTTP.utils.EncodingUtil;
+import utils.EncodingUtil;
 
 import java.io.*;
 import java.net.ServerSocket;

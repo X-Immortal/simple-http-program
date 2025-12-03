@@ -1,6 +1,6 @@
 package TCP;
 
-import HTTP.utils.EncodingUtil;
+import utils.EncodingUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,14 +68,12 @@ public class TCPClient {
     }
 
     public void sendMessage(byte[] message) throws IOException {
-        start();
         if (!isReady()) throw new SocketException("Not connected");
         clientSocket.getOutputStream().write(message);
         clientSocket.getOutputStream().flush();
     }
 
     public byte[] receiveMessage() throws IOException {
-        start();
         if (!isReady()) throw new SocketException("Not connected");
         InputStream is = clientSocket.getInputStream();
         StringBuilder sb = new StringBuilder();

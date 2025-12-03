@@ -2,7 +2,6 @@ package CLI.client;
 
 import CLI.Command;
 import TCP.TCPClient;
-import org.apache.commons.text.StringEscapeUtils;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -45,9 +44,7 @@ public class TCPClientCLI extends ClientCLI {
         }
 
         try {
-            String arg = argsArr[0].replaceAll("\"", "");
-            arg = StringEscapeUtils.unescapeJava(arg);
-            client.sendMessage(arg.getBytes());
+            client.sendMessage(argsArr[0].getBytes());
             System.out.println("Succeeded to send message to server");
         } catch (IOException e) {
             System.out.println("Failed to send message to server");

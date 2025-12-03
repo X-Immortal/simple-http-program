@@ -9,8 +9,8 @@ import HTTP.rule.HTTPVersion;
 import HTTP.rule.MIME;
 import HTTP.rule.MIMETypeNotSupportedException;
 import HTTP.server.user.UserManager;
-import HTTP.utils.EncodingUtil;
-import HTTP.utils.FileUtil;
+import utils.EncodingUtil;
+import utils.FileUtil;
 import TCP.TCPClient;
 
 import java.io.IOException;
@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.function.BiConsumer;
 
 public final class HTTPClient extends TCPClient {
-    private static final int MAX_REDIRECTS = 5;
     private static final String HOST_NAME = "Simple HTTP Client";
     private final HashMap<String, String> redirectionMap = new HashMap<>();
     private final HashMap<String, File> cache = new HashMap<>();
@@ -35,6 +34,7 @@ public final class HTTPClient extends TCPClient {
     public HTTPClient(URL url) {
         super(url);
         path = url.getPath();
+        start();
     }
 
     private HTTPResponse getResponse(HTTPRequest request)
@@ -67,15 +67,9 @@ public final class HTTPClient extends TCPClient {
         }
     }
 
-    public void connect(BiConsumer<String, HTTPResponse> handler)
-            throws HTTPResponseFormatException, HTTPRequestFormatException, IOException, HTTPMethodNotAllowedException {
-        enter("/", handler, false);
-    }
-
     public void enter(String path, BiConsumer<String, HTTPResponse> handler, boolean isRoot)
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
             HTTPResponseFormatException, IOException {
-        start();
         if (!isReady()) throw new SocketException("Not connected");
 
         HTTPRequest request = new HTTPRequest();
@@ -100,7 +94,6 @@ public final class HTTPClient extends TCPClient {
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
             HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
             IllegalArgumentException {
-        start();
         if (!isReady()) throw new SocketException("Not connected");
 
         if (path.endsWith("/")) {
@@ -136,7 +129,6 @@ public final class HTTPClient extends TCPClient {
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
                 HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
                 IllegalArgumentException {
-        start();
         if (!isReady()) throw new SocketException("Not connected");
 
         HTTPRequest request = new HTTPRequest();

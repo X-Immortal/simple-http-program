@@ -4,7 +4,7 @@ import HTTP.message.exception.HTTPMethodNotAllowedException;
 import HTTP.message.exception.HTTPRequestFormatException;
 import HTTP.message.exception.HTTPRequestHeadersFormatException;
 import HTTP.message.exception.HTTPRequestLineFormatException;
-import HTTP.utils.EncodingUtil;
+import utils.EncodingUtil;
 import HTTP.rule.HTTPVersion;
 
 import java.util.*;

@@ -4,7 +4,7 @@ import HTTP.message.exception.HTTPResponseFormatException;
 import HTTP.message.exception.HTTPResponseHeadersFormatException;
 import HTTP.message.exception.HTTPStatusLineFormatException;
 import HTTP.rule.HTTPVersion;
-import HTTP.utils.EncodingUtil;
+import utils.EncodingUtil;
 
 import java.util.HashMap;
 import java.util.Map;

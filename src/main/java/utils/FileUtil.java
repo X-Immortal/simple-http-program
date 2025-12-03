@@ -1,4 +1,4 @@
-package HTTP.utils;
+package utils;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
@@ -8,8 +8,15 @@ import java.util.StringJoiner;
 import java.util.TimeZone;
 
 public class FileUtil {
-
     private FileUtil() {}
+
+    public static String getAbsolutePath(String workDir, String path) throws FileNotFoundException {
+        File file = new File(workDir, path);
+        if (!file.exists()) {
+            throw new FileNotFoundException(path);
+        }
+        return file.getAbsolutePath();
+    }
 
     public static String getExtension(String filename) {
         int dotIndex = filename.lastIndexOf(".");
@@ -60,6 +67,10 @@ public class FileUtil {
             joiner.add(f.getName());
         }
         return joiner.toString();
+    }
+
+    public static byte[] read(String workDir, String path) throws IOException {
+        return read(getAbsolutePath(workDir, path));
     }
 
     public static byte[] read(String path) throws IOException {
