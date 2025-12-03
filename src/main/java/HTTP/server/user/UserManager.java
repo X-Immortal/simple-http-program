@@ -66,12 +66,12 @@ public class UserManager {
             throw new UserNotExistsException();
         }
 
-        if (currentUsers.containsValue(username)) {
-            return null;
-        }
-
         if (!users.get(username).getPassword().equals(password)) {
             throw new PasswordException("password error");
+        }
+
+        if (currentUsers.containsValue(username)) {
+            return getTokenByUsername(username);
         }
 
         String token = getToken();
@@ -107,6 +107,15 @@ public class UserManager {
 
     public static String getRootToken() {
         return ROOT_TOKEN;
+    }
+
+    public static String getTokenByUsername(String username) {
+        for (String token : currentUsers.keySet()) {
+            if (currentUsers.get(token).equals(username)) {
+                return token;
+            }
+        }
+        return null;
     }
 
     private static void loadUsers() {

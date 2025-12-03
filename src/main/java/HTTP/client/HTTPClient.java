@@ -50,8 +50,18 @@ public final class HTTPClient extends TCPClient {
             case 301:
                 redirectionMap.put(request.getRequestLine().getPath(), response.getHeaders().get("Location"));
             case 302:
+                if (response.getHeaders().contains("Authorization")) {
+                    token = response.getHeaders().get("Authorization");
+                }
+                String authHeader = request.getHeaders().get("Authorization");
+                if (authHeader == null && !token.isEmpty()) {
+                    authHeader = token;
+                }
                 request.getRequestLine().setMethod("GET");
                 request.getHeaders().add("Content-Length", "0");
+                if (authHeader != null) {
+                    request.getHeaders().add("Authorization", authHeader);
+                }
                 path = response.getHeaders().get("Location");
                 request.getRequestLine().setPath(path);
                 request.getBody().setBody(new byte[0]);
@@ -129,8 +139,30 @@ public final class HTTPClient extends TCPClient {
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
             HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
             IllegalArgumentException {
-        // TODO
-        System.out.println("Not Implemented");
+        if (!isReady()) {
+            start();
+        }
+
+        String loginBuilder = "username=" + username +
+                "&password=" + password;
+        byte[] data = EncodingUtil.encodeText(loginBuilder);
+
+        HTTPRequest request = new HTTPRequest();
+        request.getRequestLine().setMethod("POST");
+        request.getRequestLine().setPath("/login");
+        request.getRequestLine().setVersion(HTTPVersion.getDefaultVersion());
+        request.getHeaders().add("Host", HOST_NAME);
+        request.getHeaders().add("Content-Type", "application/x-www-form-urlencoded");
+        request.getHeaders().add("Content-Length", String.valueOf(data.length));
+        request.getBody().setBody(data);
+
+        HTTPResponse response = getResponse(request);
+        if ((response.getStatusLine().getStatusCode() == 200 || 
+                response.getStatusLine().getStatusCode() == 302) &&
+                response.getHeaders().contains("Authorization")) {
+            token = response.getHeaders().get("Authorization");
+        }
+        handler.accept(this.path, response);
     }
 
     public void logout(BiConsumer<String, HTTPResponse> handler)
@@ -159,7 +191,24 @@ public final class HTTPClient extends TCPClient {
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
                 HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
                 IllegalArgumentException {
-        // TODO
-        System.out.println("Not Implemented");
+        if (!isReady()) {
+            start();
+        }
+
+        String registerBuilder = "username=" + username +
+                "&password=" + password;
+        byte[] data = EncodingUtil.encodeText(registerBuilder);
+
+        HTTPRequest request = new HTTPRequest();
+        request.getRequestLine().setMethod("POST");
+        request.getRequestLine().setPath("/register");
+        request.getRequestLine().setVersion(HTTPVersion.getDefaultVersion());
+        request.getHeaders().add("Host", HOST_NAME);
+        request.getHeaders().add("Content-Type", "application/x-www-form-urlencoded");
+        request.getHeaders().add("Content-Length", String.valueOf(data.length));
+        request.getBody().setBody(data);
+
+        HTTPResponse response = getResponse(request);
+        handler.accept(this.path, response);
     }
 }

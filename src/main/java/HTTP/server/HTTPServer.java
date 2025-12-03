@@ -9,7 +9,10 @@ import HTTP.rule.HTTPVersion;
 import HTTP.rule.MIME;
 import HTTP.rule.MIMETypeNotSupportedException;
 import HTTP.server.user.UserManager;
+import HTTP.server.user.exception.PasswordException;
+import HTTP.server.user.exception.PasswordFormatException;
 import HTTP.server.user.exception.UserNotExistsException;
+import HTTP.server.user.exception.UsernameFormatException;
 import HTTP.utils.EncodingUtil;
 import HTTP.utils.FileUtil;
 import TCP.TCPServer;
@@ -94,18 +97,88 @@ public class HTTPServer extends TCPServer {
     }
 
     private HTTPResponse handleRegister(HTTPRequest request) {
-        HTTPResponse response = new HTTPResponse();
-
-        // TODO
-        String username = null;
-
+        String method = request.getRequestLine().getMethod();
+        if (!method.equals("POST")) {
+            return handleMethodNotAllowed("Only POST method is allowed");
+        }
 
         try {
-            initUserSpace(username);
-        } catch (UserNotExistsException e) {
+            String body = EncodingUtil.decodeText(request.getBody().getBytes());
+            String[] parts = body.split("&");
+            String username = null;
+            String password = null;
+            for (String part : parts) {
+                String[] kv = part.split("=", 2);
+                if (kv.length != 2) {
+                    continue;
+                }
+                if (kv[0].equals("username")) {
+                    username = kv[1];
+                } else if (kv[0].equals("password")) {
+                    password = kv[1];
+                }
+            }
+
+            if (username == null || password == null ||
+                    username.isEmpty() || password.isEmpty()) {
+                return handleBadRequest();
+            }
+
+            boolean success;
+            try {
+                success = UserManager.register(username, password);
+            } catch (UsernameFormatException e) {
+                HTTPResponse response = new HTTPResponse();
+                byte[] content = EncodingUtil.encodeText("Username must be 4-16 characters, can contain Chinese characters, letters, digits and underscore, and cannot start with a digit.");
+
+                response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+                response.getStatusLine().setStatusCode(400);
+                response.getHeaders().add("Content-Type", MIME.getType("txt"));
+                response.getHeaders().add("Content-Length", String.valueOf(content.length));
+                response.getBody().setBody(content);
+                return response;
+            } catch (PasswordFormatException e) {
+                HTTPResponse response = new HTTPResponse();
+                byte[] content = EncodingUtil.encodeText("Password must be 8-20 characters and contain upper case letters, lower case letters and digits.");
+
+                response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+                response.getStatusLine().setStatusCode(400);
+                response.getHeaders().add("Content-Type", MIME.getType("txt"));
+                response.getHeaders().add("Content-Length", String.valueOf(content.length));
+                response.getBody().setBody(content);
+                return response;
+            }
+
+            if (!success) {
+                HTTPResponse response = new HTTPResponse();
+                byte[] content = EncodingUtil.encodeText("User already exists");
+
+                response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+                response.getStatusLine().setStatusCode(409);
+                response.getHeaders().add("Content-Type", MIME.getType("txt"));
+                response.getHeaders().add("Content-Length", String.valueOf(content.length));
+                response.getBody().setBody(content);
+                return response;
+            }
+
+            try {
+                initUserSpace(username);
+            } catch (UserNotExistsException e) {
+                return handleInternalServerError();
+            }
+
+            HTTPResponse response = new HTTPResponse();
+            byte[] content = EncodingUtil.encodeText("Register successfully");
+
+            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+            response.getStatusLine().setStatusCode(200);
+            response.getHeaders().add("Content-Type", MIME.getType("txt"));
+            response.getHeaders().add("Content-Length", String.valueOf(content.length));
+            response.getBody().setBody(content);
+            return response;
+        } catch (HTTPResponseFormatException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
-        return response;
     }
 
     private HTTPResponse handleLogin(HTTPRequest request) {
@@ -138,12 +211,73 @@ public class HTTPServer extends TCPServer {
     }
 
     private HTTPResponse login(HTTPRequest request) {
-        HTTPResponse response = new HTTPResponse();
+        String method = request.getRequestLine().getMethod();
+        if (!method.equals("POST")) {
+            return handleMethodNotAllowed("Only POST method is allowed");
+        }
 
-        // TODO
+        try {
+            String body = EncodingUtil.decodeText(request.getBody().getBytes());
+            String[] parts = body.split("&");
+            String username = null;
+            String password = null;
+            for (String part : parts) {
+                String[] kv = part.split("=", 2);
+                if (kv.length != 2) {
+                    continue;
+                }
+                if (kv[0].equals("username")) {
+                    username = kv[1];
+                } else if (kv[0].equals("password")) {
+                    password = kv[1];
+                }
+            }
+
+            if (username == null || password == null ||
+                    username.isEmpty() || password.isEmpty()) {
+                return handleBadRequest();
+            }
+
+            String token;
+            try {
+                token = UserManager.login(username, password);
+            } catch (UserNotExistsException e) {
+                HTTPResponse response = new HTTPResponse();
+                byte[] content = EncodingUtil.encodeText("User not exists");
+
+                response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+                response.getStatusLine().setStatusCode(404);
+                response.getHeaders().add("Content-Type", MIME.getType("txt"));
+                response.getHeaders().add("Content-Length", String.valueOf(content.length));
+                response.getBody().setBody(content);
+                return response;
+            } catch (PasswordException e) {
+                HTTPResponse response = new HTTPResponse();
+                byte[] content = EncodingUtil.encodeText("Password error");
+
+                response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+                response.getStatusLine().setStatusCode(401);
+                response.getHeaders().add("Content-Type", MIME.getType("txt"));
+                response.getHeaders().add("Content-Length", String.valueOf(content.length));
+                response.getBody().setBody(content);
+                return response;
+            }
 
 
-        return response;
+            HTTPResponse response = new HTTPResponse();
+            byte[] content = EncodingUtil.encodeText("Login successfully");
+
+            response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
+            response.getStatusLine().setStatusCode(302);
+            response.getHeaders().add("Location", "/document/");
+            response.getHeaders().add("Content-Type", MIME.getType("txt"));
+            response.getHeaders().add("Content-Length", String.valueOf(content.length));
+            response.getHeaders().add("Authorization", token);
+            response.getBody().setBody(content);
+            return response;
+        } catch (HTTPResponseFormatException | MIMETypeNotSupportedException e) {
+            return handleInternalServerError();
+        }
     }
 
     private HTTPResponse handleLogout(HTTPRequest request) {

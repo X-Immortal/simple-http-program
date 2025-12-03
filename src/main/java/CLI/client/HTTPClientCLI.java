@@ -171,7 +171,11 @@ public class HTTPClientCLI extends ClientCLI {
             client.enter(path, (finalPath, response) -> {
                 System.out.println("entered:" + baseURL + finalPath);
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
-                this.path = finalPath;
+                if (response.getStatusLine().getStatusCode() == 200) {
+                    this.path = finalPath;
+                } else {
+                    System.out.println("Enter failed, keep current path: " + baseURL + this.path);
+                }
             }, args.hasOption("r"));
         } catch (HTTPResponseFormatException | IOException e) {
             System.out.println("transmission failed");
@@ -259,71 +263,116 @@ public class HTTPClientCLI extends ClientCLI {
         if (!checkConnection()) return;
 
         int maxTimes = 3;
-        String username, password;
+        String username = "", password;
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        boolean[] loginSuccess = {false};
+        boolean[] userNotExists = {false};
+        boolean hasUsername = false;
 
-        while (true) {
-            if (--maxTimes < 0) {
-                System.out.println("Too many attempts");
-                return;
+        while (maxTimes > 0 && !loginSuccess[0]) {
+            maxTimes--;
+            final int remainingAttempts = maxTimes;
+            if(!hasUsername) {
+                System.out.print("your username: ");
             }
-            System.out.print("your username: ");
             try {
-                username = br.readLine();
-                if (username.isEmpty()) {
-                    continue;
+                if(!hasUsername) {
+                    username = br.readLine();
+                    if (username == null || username.isEmpty()) {
+                        System.out.println("Username cannot be empty");
+                        maxTimes++;
+                        continue;
+                    }else{
+                        hasUsername = true;
+                    }
                 }
+                System.out.print("your password: ");
                 password = br.readLine();
-                if (password.isEmpty()) {
+                if (password == null || password.isEmpty()) {
+                    System.out.println("Password cannot be empty");
+                    if (remainingAttempts > 0) {
+                        System.out.println("Remaining attempts: " + remainingAttempts);
+                    } else {
+                        System.out.println("Too many attempts. Please use 'login' command again.");
+                    }
                     continue;
                 }
-                break;
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        }
 
-        try {
-            client.login(username, password, (finalPath, response) -> {
-                path = finalPath;
-                if (response.getStatusLine().getStatusCode() != 200) {
-                    System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
-                    System.out.println("Login failed");
+            try {
+                client.login(username, password, (finalPath, response) -> {
+                    int status = response.getStatusLine().getStatusCode();
+                    if (status == 404) {
+                        System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                        System.out.println("Username does not exist. Please use 'login' command again.");
+                        userNotExists[0] = true;
+                        return;
+                    }
+                    if (status != 200) {
+                        System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                        System.out.println("Login failed");
+                        if (remainingAttempts > 0) {
+                            System.out.println("Remaining attempts: " + remainingAttempts);
+                        } else {
+                            System.out.println("Too many attempts. Please use 'login' command again.");
+                        }
+                        return;
+                    }
+                    System.out.println("Login successfully");
+                    path = finalPath;
+                    System.out.println("current: " + baseURL + path);
+                    if (response.getBody().getBytes() != null &&
+                            response.getBody().getBytes().length > 0) {
+                        System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                    }
+                    loginSuccess[0] = true;
+                });
+                if (userNotExists[0]) {
                     return;
                 }
-                System.out.println("Login successfully");
-                System.out.println("current: " + baseURL + path);
-                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
-            });
-        } catch (HTTPResponseFormatException | IOException e) {
-            System.out.println("transmission failed");
-        } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException | MIMETypeNotSupportedException e) {
-            System.out.println("Client error");
+            } catch (HTTPResponseFormatException | IOException e) {
+                System.out.println("transmission failed");
+                if (remainingAttempts > 0) {
+                    System.out.println("Remaining attempts: " + remainingAttempts);
+                } else {
+                    System.out.println("Too many attempts. Please use 'login' command again.");
+                    break;
+                }
+            } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException | MIMETypeNotSupportedException e) {
+                System.out.println("Client error");
+                if (remainingAttempts > 0) {
+                    System.out.println("Remaining attempts: " + remainingAttempts);
+                } else {
+                    System.out.println("Too many attempts. Please use 'login' command again.");
+                    break;
+                }
+            }
         }
     }
 
     private void register(org.apache.commons.cli.CommandLine args) {
         if (!checkConnection()) return;
 
-        int maxTimes = 3;
         String username, password, confirm;
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
         while (true) {
-            if (--maxTimes < 0) {
-                System.out.println("Too many attempts");
-                return;
-            }
             System.out.print("your username: ");
             try {
                 username = br.readLine();
                 if (username.isEmpty()) {
+                    System.out.println("Username cannot be empty");
                     continue;
                 }
+                System.out.print("your password: ");
                 password = br.readLine();
                 if (password.isEmpty()) {
+                    System.out.println("Password cannot be empty");
                     continue;
                 }
+                System.out.print("confirm password: ");
                 confirm = br.readLine();
                 if (!password.equals(confirm)) {
                     System.out.println("Password does not match");

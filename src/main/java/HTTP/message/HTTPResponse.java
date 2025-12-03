@@ -208,6 +208,7 @@ public class HTTPResponse {
         headers = new HTTPResponseHeaders(parts2[0]);
 
         int contentLength = Integer.parseInt(headers.get("Content-Length"));
+        body = new HTTPResponseBody();
         if (contentLength > 0) {
             if (parts2.length != 2 || parts2[1].length() < contentLength) {
                 throw new HTTPResponseFormatException("Lack body");
