@@ -93,7 +93,7 @@ public class UserManager {
             return null;
         }
         User user = users.get(username);
-        return String.valueOf(user.hashCode()).substring(0, 7);
+        return String.format("%08x", user.hashCode());
     }
 
     public static String getUserDirByToken(String token) {
@@ -102,7 +102,7 @@ public class UserManager {
         }
         String username = currentUsers.get(token);
         User user = users.get(username);
-        return String.valueOf(user.hashCode()).substring(0, 7);
+        return String.format("%08x", user.hashCode());
     }
 
     public static String getRootToken() {

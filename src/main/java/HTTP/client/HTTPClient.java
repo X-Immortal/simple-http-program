@@ -12,6 +12,7 @@ import HTTP.server.user.UserManager;
 import utils.EncodingUtil;
 import utils.FileUtil;
 import TCP.TCPClient;
+import utils.JSON;
 
 import java.io.IOException;
 import java.net.SocketException;
@@ -39,7 +40,7 @@ public final class HTTPClient extends TCPClient {
 
     private HTTPResponse getResponse(HTTPRequest request)
             throws IOException, HTTPResponseFormatException,
-                HTTPRequestFormatException, HTTPMethodNotAllowedException {
+            HTTPRequestFormatException, HTTPMethodNotAllowedException {
         path = request.getRequestLine().getPath();
         path = redirectionMap.getOrDefault(path, path);
         request.getRequestLine().setPath(path);
@@ -121,8 +122,14 @@ public final class HTTPClient extends TCPClient {
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
             HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
             IllegalArgumentException {
-        // TODO
-        System.out.println("Not Implemented");
+        HTTPResponse response = handleUser(username, password, handler, "/login");
+        if (response.getStatusLine().getStatusCode() == 200) {
+            JSON json = new JSON(EncodingUtil.decodeText(response.getBody().getBytes()));
+            if (!json.contains("token")) {
+                throw new HTTPResponseFormatException("Lack token");
+            }
+            token = json.get("token");
+        }
     }
 
     public void logout(BiConsumer<String, HTTPResponse> handler)
@@ -149,7 +156,29 @@ public final class HTTPClient extends TCPClient {
             throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
                 HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
                 IllegalArgumentException {
-        // TODO
-        System.out.println("Not Implemented");
+        handleUser(username, password, handler, "/register");
+    }
+
+    private HTTPResponse handleUser(String username, String password, BiConsumer<String, HTTPResponse> handler, String path)
+            throws HTTPMethodNotAllowedException, HTTPRequestFormatException,
+                HTTPResponseFormatException, IOException, MIMETypeNotSupportedException,
+                IllegalArgumentException {
+        if (!isReady()) throw new SocketException("Not connected");
+
+        JSON userInfo = new JSON();
+        userInfo.add("username", username);
+        userInfo.add("password", password);
+        byte[] data = userInfo.getBytes();
+        HTTPRequest request = new HTTPRequest();
+        request.getRequestLine().setMethod("POST");
+        request.getRequestLine().setPath(path);
+        request.getRequestLine().setVersion(HTTPVersion.getDefaultVersion());
+        request.getHeaders().add("Host", HOST_NAME);
+        request.getHeaders().add("Content-Type", MIME.getType("json"));
+        request.getHeaders().add("Content-Length", String.valueOf(data.length));
+        request.getBody().setBody(data);
+        HTTPResponse response = getResponse(request);
+        handler.accept(this.path, response);
+        return response;
     }
 }

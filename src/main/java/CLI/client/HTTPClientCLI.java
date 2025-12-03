@@ -2,16 +2,21 @@ package CLI.client;
 
 import CLI.Command;
 import HTTP.client.HTTPClient;
+import HTTP.message.HTTPResponse;
 import HTTP.message.exception.HTTPMethodNotAllowedException;
 import HTTP.message.exception.HTTPRequestFormatException;
 import HTTP.message.exception.HTTPResponseFormatException;
+import HTTP.rule.MIME;
 import HTTP.rule.MIMETypeNotSupportedException;
 import utils.EncodingUtil;
 import utils.FileUtil;
+import utils.JSON;
+import utils.URLUtil;
 
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.InvalidPathException;
 
 public class HTTPClientCLI extends ClientCLI {
     private HTTPClient client;
@@ -195,10 +200,10 @@ public class HTTPClientCLI extends ClientCLI {
         }
 
         String[] argsArr = args.getArgs();
-        String targetPath = argsArr[1] + "/" + FileUtil.getName(argsArr[0]);
+        String targetPath = URLUtil.normalize(path + "/" + argsArr[1]) + "/";
 
         try {
-            client.push(new URL(targetPath).getPath(), FileUtil.read(CACHE_DIR, argsArr[0]),
+            client.push(targetPath + FileUtil.getName(argsArr[0]), FileUtil.read(CACHE_DIR, argsArr[0]),
                     (finalPath, response) -> {
                         path = finalPath;
                         System.out.println("entered: " + baseURL + finalPath);
@@ -213,11 +218,12 @@ public class HTTPClientCLI extends ClientCLI {
         } catch (HTTPResponseFormatException e) {
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
+            e.printStackTrace();
             System.out.println("Client error");
         } catch (MIMETypeNotSupportedException e) {
             System.out.println("Unsupported file type");
-        } catch (MalformedURLException e) {
-            System.out.println("Invalid url: " + targetPath);
+        } catch (InvalidPathException e) {
+            System.out.println("Invalid target path: " + targetPath);
         } catch (FileNotFoundException e) {
             System.out.println("Unexisted file: " + argsArr[0]);
         } catch (IOException e) {
@@ -254,15 +260,14 @@ public class HTTPClientCLI extends ClientCLI {
 
         try {
             client.login(username, password, (finalPath, response) -> {
-                path = finalPath;
                 if (response.getStatusLine().getStatusCode() != 200) {
-                    System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                    userFail(response);
                     System.out.println("Login failed");
+                    System.out.println("current: " + baseURL + path);
                     return;
                 }
                 System.out.println("Login successfully");
                 System.out.println("current: " + baseURL + path);
-                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
             });
         } catch (HTTPResponseFormatException | IOException e) {
             System.out.println("transmission failed");
@@ -276,47 +281,39 @@ public class HTTPClientCLI extends ClientCLI {
 
         int maxTimes = 3;
         String username, password, confirm;
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        Console console = System.console();
 
         while (true) {
             if (--maxTimes < 0) {
                 System.out.println("Too many attempts");
                 return;
             }
-            try {
-                System.out.print("your username: ");
-                username = br.readLine();
-                if (username.isEmpty()) {
-                    continue;
-                }
-                System.out.print("your password: ");
-                password = br.readLine();
-                if (password.isEmpty()) {
-                    continue;
-                }
-                System.out.print("confirm your password: ");
-                confirm = br.readLine();
-                if (!password.equals(confirm)) {
-                    System.out.println("Password does not match");
-                    continue;
-                }
-                break;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            username = console.readLine("your username: ");
+            if (username.isEmpty()) {
+                continue;
             }
+            password = new String(console.readPassword("your password: "));
+            if (password.isEmpty()) {
+                continue;
+            }
+            confirm = new String(console.readPassword("confirm your password: "));
+            if (!password.equals(confirm)) {
+                System.out.println("Password does not match");
+                continue;
+            }
+            break;
         }
 
         try {
             client.register(username, password, (finalPath, response) -> {
-                path = finalPath;
                 if (response.getStatusLine().getStatusCode() != 200) {
+                    userFail(response);
                     System.out.println("Register failed");
-                    System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                    System.out.println("current: " + baseURL + path);
                     return;
                 }
                 System.out.println("Register successfully");
                 System.out.println("current: " + baseURL + path);
-                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
             });
         } catch (HTTPResponseFormatException | IOException e) {
             System.out.println("transmission failed");
@@ -330,19 +327,36 @@ public class HTTPClientCLI extends ClientCLI {
 
         try {
             client.logout((finalPath, response) -> {
-                path = finalPath;
-                if (!path.equals("/") || response.getStatusLine().getStatusCode() != 200) {
+                if (response.getStatusLine().getStatusCode() != 200) {
+                    userFail(response);
                     System.out.println("Logout failed");
-                    System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+                    System.out.println("current: " + baseURL + path);
                     return;
                 }
                 System.out.println("Logout successfully");
                 System.out.println("current: " + baseURL + path);
-                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
             });
         } catch (HTTPResponseFormatException | IOException e) {
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException | MIMETypeNotSupportedException e) {
+            System.out.println("Client error");
+        }
+    }
+
+    private void userFail(HTTPResponse response) {
+        try {
+            String contentType = response.getHeaders().get("Content-Type");
+            if (contentType.equals(MIME.getType("json"))) {
+                JSON json = new JSON(EncodingUtil.decodeText(response.getBody().getBytes()));
+                if (json.contains("error")) {
+                    System.out.println(json.get(json.get("error")));
+                } else {
+                    System.out.println("Unknown error");
+                }
+            } else if (contentType.equals(MIME.getType("text"))) {
+                System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
+            }
+        } catch (MIMETypeNotSupportedException e) {
             System.out.println("Client error");
         }
     }

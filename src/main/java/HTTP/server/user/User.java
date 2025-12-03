@@ -20,10 +20,12 @@ public class User implements Serializable {
 
     public User(String username, String password) throws UsernameFormatException, PasswordFormatException {
         if (!username.matches(USERNAME_FORMAT)) {
-            throw new UsernameFormatException();
+            throw new UsernameFormatException("Username can only contain Chinese characters, English letters, digits, and underscores. " +
+                    "Cannot start with a digit, length must be between 4 and 16 characters");
         }
         if (!password.matches(PASSWORD_FORMAT)) {
-            throw new PasswordFormatException();
+            throw new PasswordFormatException("Password can only and must contain uppercase letters, lowercase letters, and digits. " +
+                    "Length must be between 8 and 20 characters");
         }
         this.username = username;
         this.password = password;

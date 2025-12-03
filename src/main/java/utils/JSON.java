@@ -28,4 +28,9 @@ public class JSON {
     public byte[] getBytes() {
         return EncodingUtil.encodeText(json.toString());
     }
+
+    @Override
+    public String toString() {
+        return json.toString();
+    }
 }

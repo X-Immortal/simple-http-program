@@ -28,6 +28,7 @@ public class FileUtil {
         if (file.isDirectory()) {
             return "";
         }
+        path = file.getPath();
         int slashIndex = path.lastIndexOf(File.separator);
         return slashIndex == -1 ? path : path.substring(slashIndex + 1);
     }
@@ -46,23 +47,14 @@ public class FileUtil {
         return dateFormat.format(lastModified);
     }
 
-
-    public static String listFiles(String path, FileFilter filter) {
-        StringJoiner joiner = new StringJoiner("\n");
-        File file = new File(path);
-        File[] files = file.listFiles(filter);
-        if (files == null) return "";
-        for (File f : files) {
-            joiner.add(f.getName());
-        }
-        return joiner.toString();
-    }
-
-    public static String listFiles(String path) {
+    public static String listFiles(String path) throws FileNotFoundException {
         StringJoiner joiner = new StringJoiner("\n");
         File file = new File(path);
         File[] files = file.listFiles();
-        if (files == null) return "";
+        if (files == null) {
+            throw new FileNotFoundException(path);
+        }
+        if (files.length == 0) return "empty";
         for (File f : files) {
             joiner.add(f.getName());
         }
