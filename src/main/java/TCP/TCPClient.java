@@ -60,7 +60,7 @@ public class TCPClient {
         if (!isReady()) start();
         InputStream is = clientSocket.getInputStream();
         StringBuilder sb = new StringBuilder();
-        while (sb.isEmpty()) {
+        while (sb.length() == 0) {
             byte[] buffer = new byte[4096];
             int bytesRead;
             while (is.available() > 0 && (bytesRead = is.read(buffer)) != -1) {

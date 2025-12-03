@@ -3,7 +3,6 @@ package HTTP.server.user;
 import HTTP.server.user.exception.PasswordFormatException;
 import HTTP.server.user.exception.UsernameFormatException;
 
-import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
 import java.util.Random;
