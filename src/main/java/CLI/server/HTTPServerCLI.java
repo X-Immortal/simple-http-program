@@ -24,7 +24,7 @@ public class HTTPServerCLI extends ServerCLI {
 
     @Override
     protected void start() {
-        server = new HTTPServer(8080);
+        server = new HTTPServer(8019);
 
         server.setShowStartInfo(port -> {
             System.out.println("server started on port: " + port);

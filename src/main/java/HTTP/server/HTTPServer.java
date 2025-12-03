@@ -27,7 +27,6 @@ public class HTTPServer extends TCPServer {
     private static final String MSG_BODY_PATH = ROOT_PATH + "msgbody" + File.separator;
     private static final String SERVER_NAME = "Simple HTTP Server";
     private final HashMap<String, Function<HTTPRequest, HTTPResponse>> routerMap = new HashMap<>();
-    private final HashMap<String, String> redirectMap = new HashMap<>();
 
     {
         routerMap.put("/", this::handleDefault);
@@ -35,8 +34,7 @@ public class HTTPServer extends TCPServer {
         routerMap.put("/login", this::handleLogin);
         routerMap.put("/document", this::handleDocument);
         routerMap.put("/logout", this::handleLogout);
-
-        redirectMap.put("/file", "/document");
+        routerMap.put("/error", this::handleInternalServerError);
     }
 
     public HTTPServer(int port) {
@@ -75,6 +73,10 @@ public class HTTPServer extends TCPServer {
     }
 
     private HTTPResponse handleDefault(HTTPRequest request) {
+        if ((!request.getRequestLine().getMethod().equals("GET"))) {
+            return handleMethodNotAllowed("Only GET method is allowed");
+        }
+
         HTTPResponse response = new HTTPResponse();
         try {
             byte[] content = FileUtil.read(DEFAULT_FILE_PATH);
@@ -303,6 +305,10 @@ public class HTTPServer extends TCPServer {
         } catch (HTTPResponseFormatException | IOException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
+    }
+
+    private HTTPResponse handleInternalServerError(HTTPRequest request) {
+        return handleInternalServerError();
     }
 
     private HTTPResponse handleInternalServerError() {
