@@ -14,7 +14,7 @@ public class TCPClient {
     private Socket clientSocket;
     protected final String host;
     protected final int port;
-    protected final int timeout = 10000;
+    protected final int timeout = 30000;
 
     public TCPClient(String host, int port) {
         this.host = host;
