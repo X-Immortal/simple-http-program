@@ -26,4 +26,8 @@ public class MIME {
     public static boolean support(String extension) {
         return typeMap.containsKey(extension);
     }
+
+    public static boolean isText(String type) {
+        return type.startsWith("text/");
+    }
 }

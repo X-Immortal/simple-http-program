@@ -178,20 +178,21 @@ public class HTTPClientCLI extends CLI {
 
         try {
             client.enter(targetPath, (finalPath, response) -> {
-                System.out.println("current: " + baseURL + path);
                 if (!finalPath.equals(targetPath) ||
                         response.getStatusLine().getStatusCode() != 200) {
                     System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
                     System.out.println("Fetch " + baseURL + finalPath + " failed");
-                    return;
+                } else {
+                    try {
+                        FileUtil.write(CACHE_DIR + argsArr[0], response.getBody().getBytes());
+                    } catch (IOException e) {
+                        System.out.println("Failed to write file");
+                        return;
+                    }
+                    System.out.println("Fetch " + baseURL + finalPath + " successfully");
+                    System.out.println("You can view it in " + CACHE_DIR);
                 }
-                try {
-                    FileUtil.write(CACHE_DIR + argsArr[0], response.getBody().getBytes());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-                System.out.println("Fetch " + baseURL + finalPath + " successfully");
-                System.out.println("You can view it in " + CACHE_DIR);
+                System.out.println("current: " + baseURL + path);
             }, args.hasOption("r"));
         } catch (HTTPResponseFormatException | IOException e) {
             System.out.println("transmission failed");
@@ -214,19 +215,18 @@ public class HTTPClientCLI extends CLI {
             client.push(targetPath + FileUtil.getName(argsArr[0]), FileUtil.read(CACHE_DIR, argsArr[0]),
                     (finalPath, response) -> {
                         path = finalPath;
-                        System.out.println("entered: " + baseURL + finalPath);
-                        System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
                         if (!finalPath.equals(targetPath) ||
                                 response.getStatusLine().getStatusCode() != 200) {
                             System.out.println("Push " + argsArr[0] + " failed");
-                            return;
+                        } else {
+                            System.out.println("Push " + argsArr[0] + " successfully");
                         }
-                        System.out.println("Push " + argsArr[0] + " successfully");
+                        System.out.println("entered: " + baseURL + finalPath);
+                        System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
                     }, args.hasOption("r"));
         } catch (HTTPResponseFormatException e) {
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
-            e.printStackTrace();
             System.out.println("Client error");
         } catch (MIMETypeNotSupportedException e) {
             System.out.println("Unsupported file type");
@@ -338,7 +338,6 @@ public class HTTPClientCLI extends CLI {
                 path = "/login";
                 if (response.getStatusLine().getStatusCode() != 200) {
                     userFail(response);
-                    System.out.println("Logout failed");
                     System.out.println("current: " + baseURL + path);
                     return;
                 }
@@ -362,7 +361,7 @@ public class HTTPClientCLI extends CLI {
                 } else {
                     System.out.println("Unknown error");
                 }
-            } else if (contentType.equals(MIME.getType("text"))) {
+            } else if (contentType.equals(MIME.getType("txt"))) {
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
             }
         } catch (MIMETypeNotSupportedException e) {

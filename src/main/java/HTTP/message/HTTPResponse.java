@@ -4,6 +4,7 @@ import HTTP.message.exception.HTTPResponseFormatException;
 import HTTP.message.exception.HTTPResponseHeadersFormatException;
 import HTTP.message.exception.HTTPStatusLineFormatException;
 import HTTP.rule.HTTPVersion;
+import HTTP.rule.MIME;
 import utils.EncodingUtil;
 
 import java.util.HashMap;
@@ -222,5 +223,16 @@ public class HTTPResponse {
                         EncodingUtil.decodeBinary(statusLine.getBytes()),
                         EncodingUtil.decodeBinary(headers.getBytes()),
                         EncodingUtil.decodeBinary(body.getBytes())) );
+    }
+
+    @Override
+    public String toString() {
+        StringJoiner joiner = new StringJoiner("\r\n");
+        joiner.add(EncodingUtil.decodeText(statusLine.getBytes()))
+                .add(EncodingUtil.decodeText(headers.getBytes()));
+        if (headers.contains("Content-Type") && MIME.isText(headers.get("Content-Type"))) {
+            joiner.add(EncodingUtil.decodeText(body.getBytes()));
+        }
+        return joiner.toString();
     }
 }

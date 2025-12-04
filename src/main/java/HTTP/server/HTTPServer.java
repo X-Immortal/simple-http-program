@@ -47,7 +47,6 @@ public class HTTPServer extends TCPServer {
     public void run() {
         run(bytes -> {
             if (bytes == null || bytes.length == 0) return null;
-            new Thread(() -> showReceivedMessage.accept(bytes)).start();
             return handleRequest(bytes);
         });
     }
@@ -57,6 +56,7 @@ public class HTTPServer extends TCPServer {
         HTTPRequest request;
         try {
             request = new HTTPRequest(messageStr);
+            new Thread(() -> showReceivedMessage.accept(request)).start();
         } catch (HTTPRequestFormatException e) {
             return handleBadRequest().getBytes();
         } catch (HTTPMethodNotAllowedException e) {
@@ -66,7 +66,9 @@ public class HTTPServer extends TCPServer {
         if (!routerMap.containsKey(path)) {
             return handleNotFound().getBytes();
         }
-        return routerMap.get(path).apply(request).getBytes();
+        HTTPResponse response = routerMap.get(path).apply(request);
+        new Thread(() -> showSentMessage.accept(response)).start();
+        return response.getBytes();
     }
 
     private String getRouter(String path) {

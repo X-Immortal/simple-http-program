@@ -144,7 +144,7 @@ public final class HTTPClient extends TCPClient {
         request.getRequestLine().setVersion(HTTPVersion.getDefaultVersion());
         request.getHeaders().add("Host", HOST_NAME);
         request.getHeaders().add("Content-Length", "0");
-        if (token.isEmpty()) {
+        if (!token.isEmpty()) {
             request.getHeaders().add("Authorization", token);
         }
         HTTPResponse response = getResponse(request);

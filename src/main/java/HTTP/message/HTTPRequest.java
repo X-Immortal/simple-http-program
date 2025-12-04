@@ -4,6 +4,7 @@ import HTTP.message.exception.HTTPMethodNotAllowedException;
 import HTTP.message.exception.HTTPRequestFormatException;
 import HTTP.message.exception.HTTPRequestHeadersFormatException;
 import HTTP.message.exception.HTTPRequestLineFormatException;
+import HTTP.rule.MIME;
 import utils.EncodingUtil;
 import HTTP.rule.HTTPVersion;
 
@@ -238,5 +239,16 @@ public class HTTPRequest {
                         EncodingUtil.decodeBinary(requestLine.getBytes()),
                         EncodingUtil.decodeBinary(headers.getBytes()),
                         EncodingUtil.decodeBinary(body.getBytes())));
+    }
+
+    @Override
+    public String toString() {
+        StringJoiner joiner = new StringJoiner("\r\n");
+        joiner.add(EncodingUtil.decodeText(requestLine.getBytes()))
+                .add(EncodingUtil.decodeText(headers.getBytes()));
+        if (headers.contains("Content-Type") && MIME.isText(headers.get("Content-Type"))) {
+            joiner.add(EncodingUtil.decodeText(body.getBytes()));
+        }
+        return joiner.toString();
     }
 }

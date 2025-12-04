@@ -1,5 +1,7 @@
 package TCP;
 
+import HTTP.message.HTTPRequest;
+import HTTP.message.HTTPResponse;
 import utils.EncodingUtil;
 
 import java.io.*;
@@ -18,8 +20,8 @@ public class TCPServer {
     private final int port;
     protected final ExecutorService threadPool = Executors.newFixedThreadPool(10);
 
-    protected Consumer<byte[]> showReceivedMessage = arg -> {};
-    protected Consumer<byte[]> showSentMessage = arg -> {};
+    protected Consumer<HTTPRequest> showReceivedMessage = arg -> {};
+    protected Consumer<HTTPResponse> showSentMessage = arg -> {};
     protected Consumer<Integer> showStartInfo = arg -> {};
 
     public TCPServer(int port) {
@@ -48,11 +50,11 @@ public class TCPServer {
         }
     }
 
-    public void setShowReceivedMessage(Consumer<byte[]> handler) {
+    public void setShowReceivedMessage(Consumer<HTTPRequest> handler) {
         this.showReceivedMessage = handler;
     }
 
-    public void setShowSentMessage(Consumer<byte[]> handler) {
+    public void setShowSentMessage(Consumer<HTTPResponse> handler) {
         this.showSentMessage = handler;
     }
 
@@ -153,7 +155,6 @@ public class TCPServer {
             OutputStream os = clientSocket.getOutputStream();
             os.write(sentMessage);
             os.flush();
-            new Thread(() -> showSentMessage.accept(sentMessage)).start();
         }
 
         protected boolean isReady() {
