@@ -38,7 +38,6 @@ public class HTTPServer extends TCPServer {
         routerMap.put("/login", this::handleLogin);
         routerMap.put("/document", this::handleDocument);
         routerMap.put("/logout", this::handleLogout);
-        routerMap.put("/error", this::handleInternalServerError);
     }
 
     public HTTPServer(int port) {
@@ -272,6 +271,10 @@ public class HTTPServer extends TCPServer {
 
             String token = request.getHeaders().get("Authorization");
             String path = request.getRequestLine().getPath();
+            if (!checkUserSpace(token)) {
+                return handleInternalServerError();
+            }
+
             if (!token.equals(UserManager.getRootToken())) {
                 String userDir = UserManager.getUserDirByToken(token);
                 if (userDir == null) {
@@ -377,6 +380,16 @@ public class HTTPServer extends TCPServer {
         userSpace.mkdirs();
     }
 
+    private boolean checkUserSpace(String token) {
+        String userDir = UserManager.getUserDirByToken(token);
+        if (userDir == null) {
+            return true;
+        }
+
+        File userSpace = new File(ROOT_PATH + "document" + File.separator + userDir);
+        return userSpace.exists();
+    }
+
     private HTTPResponse handleBadRequest(String message, String type) {
         try {
             HTTPResponse response = new HTTPResponse();
@@ -417,10 +430,6 @@ public class HTTPServer extends TCPServer {
         } catch (HTTPResponseFormatException | IOException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
-    }
-
-    private HTTPResponse handleInternalServerError(HTTPRequest request) {
-        return handleInternalServerError();
     }
 
     private HTTPResponse handleInternalServerError() {
