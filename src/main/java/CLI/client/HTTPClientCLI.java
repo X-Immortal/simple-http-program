@@ -368,6 +368,7 @@ public class HTTPClientCLI extends ClientCLI {
     }
 
     void exit(org.apache.commons.cli.CommandLine args) {
+        logout(args);
         if (client != null && client.isReady()) {
             client.stop();
         }

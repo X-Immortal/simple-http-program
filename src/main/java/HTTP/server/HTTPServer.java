@@ -199,7 +199,8 @@ public class HTTPServer extends TCPServer {
             String token = UserManager.login(username, password);
             if (token == null) {
                 JSON json = new JSON();
-                json.add("error", "user logged in");
+                json.add("error", "username");
+                json.add("username", "user logged in");
                 return handleConflict(json.toString(), "json");
             }
 
@@ -445,7 +446,6 @@ public class HTTPServer extends TCPServer {
             response.getBody().setBody(content);
             return response;
         } catch (Exception e) {
-            e.printStackTrace();
             throw new RuntimeException(e);
         }
     }
