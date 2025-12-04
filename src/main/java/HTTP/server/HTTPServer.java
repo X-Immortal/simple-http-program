@@ -13,9 +13,9 @@ import HTTP.server.user.exception.PasswordException;
 import HTTP.server.user.exception.PasswordFormatException;
 import HTTP.server.user.exception.UserNotExistsException;
 import HTTP.server.user.exception.UsernameFormatException;
+import TCP.TCPServer;
 import utils.EncodingUtil;
 import utils.FileUtil;
-import TCP.TCPServer;
 import utils.JSON;
 
 import java.io.File;
@@ -158,18 +158,24 @@ public class HTTPServer extends TCPServer {
                 return handleMethodNotAllowed("Only GET and POST methods are allowed");
             }
 
-            return handleGetLogin();
+            return handleGetLogin(request);
         } catch (HTTPResponseFormatException | MIMETypeNotSupportedException e) {
             return handleInternalServerError();
         }
     }
 
-    private HTTPResponse handleGetLogin() throws HTTPResponseFormatException, MIMETypeNotSupportedException {
+    private HTTPResponse handleGetLogin(HTTPRequest request) throws HTTPResponseFormatException, MIMETypeNotSupportedException {
         HTTPResponse response = new HTTPResponse();
         response.getStatusLine().setVersion(HTTPVersion.getDefaultVersion());
         response.getStatusLine().setStatusCode(200);
 
-        byte[] content = EncodingUtil.encodeText("You need to login first");
+        byte[] content= EncodingUtil.encodeText("You need to login first");
+        if (request.getHeaders().contains("Authorization")) {
+            String username = UserManager.getUsername(request.getHeaders().get("Authorization"));
+            if (username != null) {
+                content = EncodingUtil.encodeText("Welcome, " + username + "!");
+            }
+        }
 
         response.getHeaders().add("Content-Type", MIME.getType("json"));
         response.getHeaders().add("Content-Length", String.valueOf(content.length));

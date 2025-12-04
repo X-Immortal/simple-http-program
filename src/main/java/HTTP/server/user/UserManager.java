@@ -43,11 +43,7 @@ public class UserManager {
         }
     }
 
-    public static boolean isLoggedIn(String token) throws UserNotExistsException {
-        if (!users.containsKey(token)) {
-            throw new UserNotExistsException();
-        }
-
+    public static boolean isLoggedIn(String token) {
         return currentUsers.containsKey(token);
     }
 
@@ -103,6 +99,13 @@ public class UserManager {
         String username = currentUsers.get(token);
         User user = users.get(username);
         return String.format("%08x", user.hashCode());
+    }
+
+    public static String getUsername(String token) {
+        if (!isLoggedIn(token)) {
+            return null;
+        }
+        return currentUsers.get(token);
     }
 
     public static String getRootToken() {

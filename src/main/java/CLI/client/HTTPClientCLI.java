@@ -13,7 +13,10 @@ import utils.FileUtil;
 import utils.JSON;
 import utils.URLUtil;
 
-import java.io.*;
+import java.io.Console;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.InvalidPathException;
@@ -22,10 +25,11 @@ public class HTTPClientCLI extends ClientCLI {
     private HTTPClient client;
     private String path;
     private String baseURL;
-    private final String CACHE_DIR;
+    private final String CACHE_DIR = System.getProperty("user.dir") + File.separator + ".cache" + File.separator;
 
     {
-        CACHE_DIR = System.getProperty("user.dir") + File.separator + ".cache" + File.separator;
+        historyPath = String.join(File.separator, System.getProperty("user.dir"), ".history", "http-client-history.txt");
+
         File file = new File(CACHE_DIR);
         file.mkdirs();
 
@@ -80,6 +84,7 @@ public class HTTPClientCLI extends ClientCLI {
 
         try {
             client.enter(path, (path, response) -> {
+                this.path = path;
                 System.out.println("entered: " + baseURL + path);
                 System.out.println(EncodingUtil.decodeText(response.getBody().getBytes()));
             }, args.hasOption("r"));
@@ -327,6 +332,7 @@ public class HTTPClientCLI extends ClientCLI {
 
         try {
             client.logout((finalPath, response) -> {
+                path = "/login";
                 if (response.getStatusLine().getStatusCode() != 200) {
                     userFail(response);
                     System.out.println("Logout failed");

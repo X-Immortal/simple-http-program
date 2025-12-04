@@ -6,11 +6,12 @@ import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.ParsedLine;
 import org.jline.reader.Parser;
 import org.jline.reader.impl.DefaultParser;
-import org.jline.reader.impl.history.DefaultHistory;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.StringJoiner;
@@ -18,8 +19,9 @@ import java.util.StringJoiner;
 public abstract class CLI {
     protected String prompt;
     protected String welcome;
+    protected String historyPath;
     protected final Terminal terminal;
-    protected final LineReader reader;
+    protected LineReader reader;
     protected final Parser parser = new DefaultParser();
     protected final HashMap<String, Command> commands = new HashMap<>();
 
@@ -30,11 +32,7 @@ public abstract class CLI {
                     .jna(true)
                     .system(true)
                     .build();
-            reader = LineReaderBuilder.builder()
-                    .terminal(terminal)
-                    .history(new DefaultHistory())
-                    .parser(parser)
-                    .build();
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -43,7 +41,21 @@ public abstract class CLI {
         commands.put("help", help);
     }
 
+    private void init() {
+        File file = new File(historyPath);
+        file.getParentFile().mkdirs();
+
+        reader = LineReaderBuilder.builder()
+                .terminal(terminal)
+                .variable(LineReader.HISTORY_FILE, Paths.get(historyPath))
+                .variable(LineReader.HISTORY_SIZE, 500)
+                .variable(LineReader.HISTORY_FILE_SIZE, 1000)
+                .parser(parser)
+                .build();
+    }
+
     protected void start() {
+        init();
 
         new Thread(() -> {
             System.out.println("=====" + welcome + "=====");
