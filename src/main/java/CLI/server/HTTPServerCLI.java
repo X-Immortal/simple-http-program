@@ -32,6 +32,8 @@ public class HTTPServerCLI extends CLI {
 
     @Override
     protected void start() {
+        super.start();
+
         server = new HTTPServer(8019);
 
         server.setShowStartInfo(port -> {
@@ -50,7 +52,5 @@ public class HTTPServerCLI extends CLI {
 
         Thread serverThread = new Thread(server::run);
         serverThread.start();
-
-        super.start();
     }
 }
