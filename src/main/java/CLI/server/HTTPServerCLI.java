@@ -41,12 +41,12 @@ public class HTTPServerCLI extends CLI {
 
         server.setShowReceivedMessage(request ->{
             reader.printAbove("Received request message:\n");
-            reader.printAbove(request.toString());
+            reader.printAbove(request.toString() + "\n\n");
         });
 
         server.setShowSentMessage(response -> {
             reader.printAbove("Replied response message:\n");
-            reader.printAbove(response.toString());
+            reader.printAbove(response.toString() + "\n\n");
         });
 
         Thread serverThread = new Thread(server::run);
