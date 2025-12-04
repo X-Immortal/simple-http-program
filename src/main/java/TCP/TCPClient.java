@@ -31,7 +31,7 @@ public class TCPClient {
         if (isReady()) return;
         try {
             clientSocket = new Socket(host, port);
-            clientSocket.setSoTimeout(500);
+            clientSocket.setSoTimeout(1000);
         } catch (IOException e) {
             System.out.println("Failed to connect to " + host + ": " + port);
         }
@@ -97,7 +97,7 @@ public class TCPClient {
             }
             if (bytesRead == -1) {
                 clientSocket.close();
-                return null;
+                return new byte[0];
             }
             byte[] data;
             if (bytesRead == buffer.length) {

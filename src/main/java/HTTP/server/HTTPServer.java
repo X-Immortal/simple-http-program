@@ -47,7 +47,7 @@ public class HTTPServer extends TCPServer {
     public void run() {
         run(bytes -> {
             if (bytes == null || bytes.length == 0) return null;
-            showReceivedMessage.accept(bytes);
+            new Thread(() -> showReceivedMessage.accept(bytes)).start();
             return handleRequest(bytes);
         });
     }

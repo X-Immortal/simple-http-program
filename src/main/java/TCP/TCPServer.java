@@ -153,7 +153,7 @@ public class TCPServer {
             OutputStream os = clientSocket.getOutputStream();
             os.write(sentMessage);
             os.flush();
-            showSentMessage.accept(sentMessage);
+            new Thread(() -> showSentMessage.accept(sentMessage)).start();
         }
 
         protected boolean isReady() {
