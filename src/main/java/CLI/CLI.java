@@ -88,10 +88,6 @@ public abstract class CLI {
         }
     }
 
-    protected void printPrompt() {
-        System.out.print(prompt + "> ");
-    }
-
     protected void help(org.apache.commons.cli.CommandLine args) {
         StringJoiner joiner = new StringJoiner("\n\n", "Usage:\n", "");
         commands.forEach((name, command) ->

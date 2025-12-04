@@ -184,6 +184,11 @@ public class HTTPServer extends TCPServer {
     }
 
     private HTTPResponse login(HTTPRequest request) {
+        if (request.getHeaders().contains("Authorization") &&
+            UserManager.isLoggedIn(request.getHeaders().get("Authorization"))) {
+            return handleConflict("You are logged in now, please logout and then try again.", "txt");
+        }
+
         try {
             if (!request.getHeaders().get("Content-Type").equals(MIME.getType("json"))) {
                 return handleBadRequest("Only json file is accepted", "txt");
@@ -229,7 +234,7 @@ public class HTTPServer extends TCPServer {
         }
 
         if (!request.getHeaders().contains("Authorization")) {
-            return handleBadRequest("Lack token", "txt");
+            return handleBadRequest("Not logged in", "txt");
         }
 
         String token = request.getHeaders().get("Authorization");

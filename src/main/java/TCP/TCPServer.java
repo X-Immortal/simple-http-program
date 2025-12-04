@@ -88,7 +88,7 @@ public class TCPServer {
             this.clientSocket = socket;
             this.handler = handler;
             try {
-                clientSocket.setSoTimeout(500);
+                clientSocket.setSoTimeout(100);
             } catch (SocketException e) {
                 throw new RuntimeException(e);
             }

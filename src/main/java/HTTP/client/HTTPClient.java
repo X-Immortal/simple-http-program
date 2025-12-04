@@ -144,11 +144,11 @@ public final class HTTPClient extends TCPClient {
         request.getRequestLine().setVersion(HTTPVersion.getDefaultVersion());
         request.getHeaders().add("Host", HOST_NAME);
         request.getHeaders().add("Content-Length", "0");
-        request.getHeaders().add("Authorization", token);
-        HTTPResponse response = getResponse(request);
-        if (response.getStatusLine().getStatusCode() == 200) {
-            token = "";
+        if (token.isEmpty()) {
+            request.getHeaders().add("Authorization", token);
         }
+        HTTPResponse response = getResponse(request);
+        token = "";
         handler.accept(this.path, response);
     }
 
@@ -176,6 +176,9 @@ public final class HTTPClient extends TCPClient {
         request.getHeaders().add("Host", HOST_NAME);
         request.getHeaders().add("Content-Type", MIME.getType("json"));
         request.getHeaders().add("Content-Length", String.valueOf(data.length));
+        if (!token.isEmpty()) {
+            request.getHeaders().add("Authorization", token);
+        }
         request.getBody().setBody(data);
         HTTPResponse response = getResponse(request);
         handler.accept(this.path, response);

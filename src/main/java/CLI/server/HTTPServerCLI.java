@@ -3,6 +3,7 @@ package CLI.server;
 import CLI.CLI;
 import CLI.Command;
 import HTTP.server.HTTPServer;
+import utils.EncodingUtil;
 
 import java.io.File;
 
@@ -34,21 +35,17 @@ public class HTTPServerCLI extends CLI {
         server = new HTTPServer(8019);
 
         server.setShowStartInfo(port -> {
-            System.out.println("server started on port: " + port);
+            reader.printAbove("server started on port: " + port + "\n");
         });
 
         server.setShowReceivedMessage(message ->{
-            System.out.println();
-            System.out.println("Received request message:");
-            System.out.println(new String(message));
-            printPrompt();
+            reader.printAbove("Received request message:\n");
+            reader.printAbove(EncodingUtil.decodeText(message) + "\n\n");
         });
 
         server.setShowSentMessage(message -> {
-            System.out.println();
-            System.out.println("Replied response message:");
-            System.out.println(new String(message));
-            printPrompt();
+            reader.printAbove("Replied response message:\n");
+            reader.printAbove(EncodingUtil.decodeText(message) + "\n\n");
         });
 
         Thread serverThread = new Thread(server::run);
