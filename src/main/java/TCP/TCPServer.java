@@ -82,12 +82,13 @@ public class TCPServer {
         protected byte[] receivedMessage;
         protected byte[] sentMessage;
         protected Function<byte[], byte[]> handler;
+        protected final int timeout = 5000;
 
         public TCPClientHandler(Socket socket, Function<byte[], byte[]> handler) {
             this.clientSocket = socket;
             this.handler = handler;
             try {
-                clientSocket.setSoTimeout(5000);
+                clientSocket.setSoTimeout(500);
             } catch (SocketException e) {
                 throw new RuntimeException(e);
             }
@@ -116,10 +117,16 @@ public class TCPServer {
             StringBuilder sb = new StringBuilder();
             byte[] buffer = new byte[1024];
             int bytesRead;
+            int totalTime = 0;
             while (true) {
                 try {
                     bytesRead = is.read(buffer);
+                    totalTime = 0;
                 } catch (SocketTimeoutException e) {
+                    totalTime += clientSocket.getSoTimeout();
+                    if (sb.length() == 0 && totalTime < timeout) {
+                        continue;
+                    }
                     break;
                 }
                 if (bytesRead == -1) {

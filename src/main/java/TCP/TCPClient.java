@@ -14,6 +14,7 @@ public class TCPClient {
     private Socket clientSocket;
     protected final String host;
     protected final int port;
+    protected final int timeout = 10000;
 
     public TCPClient(String host, int port) {
         this.host = host;
@@ -30,7 +31,7 @@ public class TCPClient {
         if (isReady()) return;
         try {
             clientSocket = new Socket(host, port);
-            clientSocket.setSoTimeout(5000);
+            clientSocket.setSoTimeout(500);
         } catch (IOException e) {
             System.out.println("Failed to connect to " + host + ": " + port);
         }
@@ -53,7 +54,7 @@ public class TCPClient {
 
         try {
             int timeout = clientSocket.getSoTimeout();
-            clientSocket.setSoTimeout(50);
+            clientSocket.setSoTimeout(10);
             try {
                 if (clientSocket.getInputStream().read() == -1) {
                     clientSocket.close();
@@ -77,27 +78,34 @@ public class TCPClient {
         if (!isReady()) throw new SocketException("Not connected");
         InputStream is = clientSocket.getInputStream();
         StringBuilder sb = new StringBuilder();
-        while (sb.length() == 0) {
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while (true) {
-                try {
-                    bytesRead = is.read(buffer);
-                } catch (SocketTimeoutException e) {
-                    break;
+        int totalTime = 0;
+        byte[] buffer = new byte[4096];
+        int bytesRead;
+        while (true) {
+            try {
+                bytesRead = is.read(buffer);
+                totalTime = 0;
+            } catch (SocketTimeoutException e) {
+                totalTime += clientSocket.getSoTimeout();
+                if (sb.length() == 0) {
+                    if (totalTime >= timeout) {
+                        throw new SocketTimeoutException();
+                    }
+                    continue;
                 }
-                if (bytesRead == -1) {
-                    clientSocket.close();
-                    return null;
-                }
-                byte[] data;
-                if (bytesRead == buffer.length) {
-                    data = buffer;
-                } else {
-                    data = Arrays.copyOf(buffer, bytesRead);
-                }
-                sb.append(EncodingUtil.decodeBinary(data));
+                break;
             }
+            if (bytesRead == -1) {
+                clientSocket.close();
+                return null;
+            }
+            byte[] data;
+            if (bytesRead == buffer.length) {
+                data = buffer;
+            } else {
+                data = Arrays.copyOf(buffer, bytesRead);
+            }
+            sb.append(EncodingUtil.decodeBinary(data));
         }
         return EncodingUtil.encodeBinary(sb.toString());
     }
