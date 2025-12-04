@@ -30,7 +30,7 @@ public class TCPClient {
         if (isReady()) return;
         try {
             clientSocket = new Socket(host, port);
-            clientSocket.setSoTimeout(100);
+            clientSocket.setSoTimeout(5000);
         } catch (IOException e) {
             System.out.println("Failed to connect to " + host + ": " + port);
         }
@@ -53,7 +53,7 @@ public class TCPClient {
 
         try {
             int timeout = clientSocket.getSoTimeout();
-            clientSocket.setSoTimeout(10);
+            clientSocket.setSoTimeout(50);
             try {
                 if (clientSocket.getInputStream().read() == -1) {
                     clientSocket.close();

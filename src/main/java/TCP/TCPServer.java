@@ -87,7 +87,7 @@ public class TCPServer {
             this.clientSocket = socket;
             this.handler = handler;
             try {
-                clientSocket.setSoTimeout(100);
+                clientSocket.setSoTimeout(5000);
             } catch (SocketException e) {
                 throw new RuntimeException(e);
             }
@@ -134,11 +134,6 @@ public class TCPServer {
                     data = Arrays.copyOf(buffer, bytesRead);
                 }
                 sb.append(EncodingUtil.decodeBinary(data));
-                try {
-                    Thread.sleep(5);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
             }
             receivedMessage = EncodingUtil.encodeBinary(sb.toString());
         }
