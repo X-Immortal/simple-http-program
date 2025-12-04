@@ -1,14 +1,17 @@
 package CLI.server;
 
+import CLI.CLI;
 import CLI.Command;
 import HTTP.server.HTTPServer;
 
 import java.io.File;
 
-public class HTTPServerCLI extends ServerCLI {
+public class HTTPServerCLI extends CLI {
     private HTTPServer server;
 
     {
+        prompt = "Server";
+        welcome = "simple http server";
         historyPath = String.join(File.separator, System.getProperty("user.dir"), ".history", "http-server-history.txt");
 
         commands.put("exit", new Command(0, "exit", "退出服务器", this::exit));

@@ -1,5 +1,6 @@
 package CLI.client;
 
+import CLI.CLI;
 import CLI.Command;
 import HTTP.client.HTTPClient;
 import HTTP.message.HTTPResponse;
@@ -21,13 +22,15 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.InvalidPathException;
 
-public class HTTPClientCLI extends ClientCLI {
+public class HTTPClientCLI extends CLI {
     private HTTPClient client;
     private String path;
     private String baseURL;
     private final String CACHE_DIR = System.getProperty("user.dir") + File.separator + ".cache" + File.separator;
 
     {
+        prompt = "Client";
+        welcome = "simple http client";
         historyPath = String.join(File.separator, System.getProperty("user.dir"), ".history", "http-client-history.txt");
 
         File file = new File(CACHE_DIR);
