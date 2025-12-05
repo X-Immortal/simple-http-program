@@ -10,199 +10,13 @@
 
 ---
 
-## 项目结构
 
-
-```text
-simple-http-program
-├─ pom.xml                 Maven 项目配置（JDK 11、依赖管理）
-├─ Readme.md               项目说明（本文件）
-├─ .cache                  运行时自动创建：HTTP 客户端下载文件的本地缓存目录
-├─ .history                运行时自动创建：客户端/服务器 CLI 的命令历史目录
-├─ .data                   运行时自动创建：用户相关数据的持久化存储
-├─ root                    HTTP 服务器的“站点根目录”
-│  ├─ welcome.txt          访问 `/` 时返回的默认文本
-│  ├─ msgbody              存放错误页面或通用消息体模板
-│  │  ├─ 400.txt
-│  │  ├─ 404.txt
-│  │  ├─ 405.txt
-│  │  └─ 500.txt
-│  └─ document             用户文档根目录
-│     ├─ data.json         示例 JSON 数据
-│     ├─ ever.jpg          示例图片资源
-│     ├─ test.txt          示例文本资源
-│     ├─ test              示例文件夹资源
-│     │  └─ 14.jpg
-│     └─ 61dc0775          用户"user"的私有目录
-│        └─ test1          
-│           ├─ ever.jpg
-│           └─ test.txt
-└─ src
-   ├─ main
-   │  ├─ java
-   │  │  ├─ CLI            命令行相关
-   │  │  │  ├─ CLI.java                    通用 CLI 抽象基类，封装终端、历史记录、命令表、帮助命令等
-   │  │  │  ├─ Command.java                单条命令的封装，负责参数解析与帮助信息输出
-   │  │  │  ├─ client
-   │  │  │  │  └─ HTTPClientCLI.java       HTTP 客户端交互式 CLI
-   │  │  │  └─ server
-   │  │  │     └─ HTTPServerCLI.java       HTTP 服务器控制 CLI（目前主要用于启动与退出）
-   │  │  ├─ HTTP           HTTP 协议层与业务层
-   │  │  │  ├─ client
-   │  │  │  │  ├─ HTTPClient.java          面向上层的 HTTP 客户端封装，基于 TCPClient
-   │  │  │  │  └─ File.java                客户端缓存文件封装，保存响应内容与时间戳（用于 If-Modified-Since / 304）
-   │  │  │  ├─ message
-   │  │  │  │  ├─ HTTPRequest.java         HTTP 请求报文模型及解析/序列化
-   │  │  │  │  │  ├─ HTTPRequestLine       内部类：方法/路径/版本校验与解析
-   │  │  │  │  │  ├─ HTTPRequestHeaders    内部类：请求头管理与格式校验
-   │  │  │  │  │  └─ HTTPRequestBody       内部类：消息体封装
-   │  │  │  │  ├─ HTTPResponse.java        HTTP 响应报文模型及解析/序列化
-   │  │  │  │  │  ├─ HTTPStatusLine        内部类：状态行及状态码合法性校验
-   │  │  │  │  │  ├─ HTTPResponseHeaders   内部类：响应头管理与格式校验
-   │  │  │  │  │  └─ HTTPResponseBody      内部类：消息体封装
-   │  │  │  │  └─ exception                请求/响应行、头、整体格式异常以及方法不允许等异常定义
-   │  │  │  │     ├─ HTTPMethodNotAllowedException.java
-   │  │  │  │     ├─ HTTPRequestFormatException.java
-   │  │  │  │     ├─ HTTPRequestHeadersFormatException.java
-   │  │  │  │     ├─ HTTPRequestLineFormatException.java
-   │  │  │  │     ├─ HTTPResponseFormatException.java
-   │  │  │  │     ├─ HTTPResponseHeadersFormatException.java
-   │  │  │  │     └─ HTTPStatusLineFormatException.java
-   │  │  │  ├─ rule
-   │  │  │  │  ├─ HTTPVersion.java         支持的 HTTP 版本定义与校验
-   │  │  │  │  ├─ MIME.java                扩展名与 MIME 类型映射，判断文本/二进制等
-   │  │  │  │  └─ MIMETypeNotSupportedException.java  不支持的 MIME 类型异常
-   │  │  │  └─ server
-   │  │  │     ├─ HTTPServer.java          核心 HTTP 服务器实现，继承 TCPServer
-   │  │  │     └─ user
-   │  │  │        ├─ User.java             用户实体
-   │  │  │        ├─ UserManager.java      用户注册/登录/登出、token 管理、用户目录映射与 root token 管理
-   │  │  │        └─ exception             用户名/密码格式、用户不存在、密码错误等业务异常
-   │  │  │           ├─ PasswordException.java
-   │  │  │           ├─ PasswordFormatException.java
-   │  │  │           ├─ UsernameFormatException.java
-   │  │  │           └─ UserNotExistsException.java
-   │  │  ├─ TCP            TCP 抽象层
-   │  │  │  ├─ TCPClient.java              对底层 Socket 的封装，提供发送/接收字节流、长连接等能力
-   │  │  │  └─ TCPServer.java              通用 TCP 服务器：监听端口、处理连接、将字节流交由回调处理
-   │  │  └─ utils          工具类
-   │  │     ├─ EncodingUtil.java           二进制与文本（UTF-8）互转工具
-   │  │     ├─ FileUtil.java               文件读写、列目录、获取扩展名/时间戳等
-   │  │     ├─ JSON.java                   简易 JSON 封装与解析
-   │  │     └─ URLUtil.java                路径规范化等 URL 相关工具
-   │  └─ resources
-   └─ test
-      └─ java
-```
-
----
-
-## 代码设计
-
-### 分层架构
-
-项目采用分层设计，从下到上分别为：
-
-```
-┌─────────────────────────────────────┐
-│      应用层（CLI & 业务逻辑）       │
-├─────────────────────────────────────┤
-│   HTTPClient / HTTPServer           │
-│   (HTTP 协议实现与请求路由)         │
-├─────────────────────────────────────┤
-│   TCPClient / TCPServer             │
-│   (TCP 连接与字节流传输)            │
-├─────────────────────────────────────┤
-│   Socket（Java 标准库）             │
-└─────────────────────────────────────┘
-```
-
-### 命令行框架（CLI）
-
-**设计思想**：通用的命令行处理框架，支持命令注册、解析、历史记录等功能
-
-- **`CLI`（抽象基类）**
-  - 职责：命令行交互、终端管理、命令分发
-  - 核心功能：
-    - 维护命令表（`commands: Map<String, Command>`）
-    - 读取用户输入并解析命令
-    - 提供历史记录（基于 jline3 库）
-    - 自动生成帮助信息
-
-- **`Command`（命令封装类）**
-  - 职责：单个命令的定义与执行
-  - 包含：用法、说明、参数数目、选项、处理函数
-  - 支持自定义选项（`-h`/`--help` 自动支持）
-
-- **`HTTPClientCLI` / `HTTPServerCLI`**（具体实现）
-  - 分别继承 `CLI` 并在初始化时注册业务命令
-  - `HTTPClientCLI`：提供客户端操作命令（enter、fetch、push 等）
-  - `HTTPServerCLI`：提供服务器控制命令（启动、退出等）
-
-### 网络通信层（TCP）
-
-**设计思想**：通用的 TCP 客户端/服务器封装，支持字节流的发送与接收
-
-- **`TCPClient`**（客户端）
-  - 职责：建立连接、发送与接收字节流
-  - 特点：超时控制、连接状态检测
-
-- **`TCPServer`（服务器）
-  - 职责：监听端口、接受连接、分发字节流处理
-  - 特点：线程池处理并发连接、回调模式处理字节流
-
-### HTTP 协议层
-
-**设计思想**：HTTP 协议的实现与业务逻辑的分离
-
-- **`HTTPRequest` / `HTTPResponse`（报文模型）**
-  - 分为三部分：**行（RequestLine/StatusLine）**、**头（Headers）**、**体（Body）**
-  - 职责：报文的解析与序列化、合法性校验
-  - 校验内容：方法、路径、版本、状态码等
-
-- **`HTTPClient` extends `TCPClient`**（客户端）
-  - 职责：HTTP 协议操作、请求构造、响应处理
-  - 提供高层接口：`enter`、`push`、`login`、`register`、`logout`
-  - 特殊处理：
-    - **重定向**：自动跟随 301/302 重定向
-    - **缓存**：304 Not Modified 时使用本地缓存
-    - **身份认证**：维护 token 用于登录态管理
-
-- **`HTTPServer` extends `TCPServer`**（服务器）
-  - 职责：HTTP 请求路由、业务处理、响应返回
-  - 路由表：将 URL 路径映射到对应的处理函数
-  - 支持的路径：
-    - `/`：首页
-    - `/register`：用户注册
-    - `/login`：用户登录
-    - `/document`：文档访问与上传
-    - `/logout`：用户登出
-
-### 用户与权限管理
-
-**`UserManager`（用户管理器）**
-- 职责：用户数据持久化、身份验证、权限管理
-- 核心功能：
-  - 用户注册与登录
-  - Token 管理（普通用户 token 与 root token 分离）
-  - 用户目录映射（将用户隔离到各自的目录）
-  - 权限验证
-
-### 工具类
-
-- **`EncodingUtil`**：字节与文本的编解码（UTF-8）
-- **`FileUtil`**：文件读写、目录遍历、属性查询
-- **`JSON`**：简易 JSON 解析与生成
-- **`URLUtil`**：URL 路径规范化
-- **`MIME`**：文件扩展名与 MIME 类型映射
-
----
 
 ## 运行环境
 
 - **JDK**：11 及以上（`pom.xml` 指定 `maven.compiler.source/target` 为 11）。
 - **构建工具**：Maven 3.x。
-- **依赖库**：
+- **依赖库（由maven自动导入）**：
   - `commons-cli:1.4`：命令行参数解析。
   - `jline:3.25.0`：交互式终端与历史记录。
   - `org.json:20231013`：JSON 支持。
@@ -285,17 +99,16 @@ Client> enter http://140.210.142.61:8019/
 后续即可在该连接上继续使用 `enter` / `refresh` / `fetch` / `push` / `login` / `register` / `logout` 等命令，与远程服务端进行交互。
 
 > **使用终端的建议与已知限制**  
-> - **优先使用系统终端**（Windows Terminal / PowerShell / CMD / macOS Terminal / iTerm2 / Linux 终端等），才能完整体验 CLI 的全部能力（含历史记录、正常行编辑/光标行为）。  
-> - IDE 相关区别：  
->   - **IDE 一键运行（Run/Debug 按钮）**：IDE 自带虚拟控制台，登录/注册不可用，历史记录不可用（上下键仅移动光标）。  
->   - **IDE 的“终端”面板 + `mvn exec:java ...`**：IDE 实现的虚拟终端，大部分功能可用，但可能出现光标渲染问题（终端能力探测被中间层截断）。  
-> - 本 CLI 目前仅提供历史记录功能，没有颜色控制、没有 Tab 补全。  
+> - **优先在系统终端/IDE“终端”面板中使用上述命令运行**，以获得最完整的交互体验（含历史记录、正常行编辑/光标行为）。
+> - IDE 相关区别：
+>   - **IDE 一键运行（Run/Debug 按钮）**：可执行程序并能进行登录/注册等交互，但在该控制台中 **密码输入无法隐藏（会回显）**，且 **命令历史不可用**（上下键通常仅做光标移动）。
+> - 本 CLI 目前仅提供历史记录功能，没有颜色控制、没有 Tab 补全。
 
 > **历史记录使用提示**  
-> - 历史文件：`.history/http-client-history.txt`（客户端）/ `.history/http-server-history.txt`（服务器），在系统终端中可跨会话持久。  
+> - 历史文件：`.history/http-client-history.txt`（客户端）/ `.history/http-server-history.txt`（服务器），在系统终端与大多数 IDE 终端面板中可跨会话持久。  
 > - 基本浏览：直接按 ↑/↓ 逐条查看历史，回车执行。  
 > - 前缀过滤：先输入前缀（如输入 `ent`），再按 ↑，只会出现以该前缀开头的历史命令（如各类 `enter ...`），便于快速定位。  
-> - 适用范围：需在系统终端使用；IDE 一键运行/虚拟终端中历史功能不可用或行为异常。  
+> - 适用范围：历史记录在 **系统终端** 与 **IDE 的终端面板** 中可用；在 **IDE 的一键运行（Run/Debug）控制台** 中通常不可用或行为异常（上下键仅移动光标）。
 
 > **网络波动与 “transmission failed” 处理提示**
 > - 如遇 `transmission failed`，请参阅文档中的 **“项目限制与已知问题”** 节以获取可能原因与排查建议。
@@ -351,16 +164,16 @@ Client> enter http://140.210.142.61:8019/
 - **`push`**
   - **功能**：从本地缓存目录（`.cache/`）上传文件到服务器的指定目录。
   - **用法**：
-    - `push <filepath> <remote_dir>`：上传本地文件 `.cache/<filename>` 到服务器 `当前路径/<remote_dir>` 下
-    - `push -r <filename> <remote_dir>`：以 root 权限上传
+    - `push <filepath> <remote_dir>`：上传本地文件到服务器 `当前路径/<remote_dir>` 下。
+      - `<filepath>` 必须是本地文件的相对路径或绝对路径，不能仅传入文件名。相对路径默认以客户端当前工作目录为准（客户端默认工作目录为 `.cache/`）。
+      - `<remote_dir>` 只支持相对路径（如 `.`、`subfolder`、`../other` 等）
   - **选项**：
     - `-r` / `--root`：以 root 权限上传
   - **使用示例**：
-    - 当前在 `/document/`，执行 `push ./photo.jpg .` 会将 `.cache/photo.jpg` 上传到服务器的 `/document/photo.jpg`
-    - 执行 `push ./photo.jpg subfolder` 会上传到 `/document/subfolder/photo.jpg`
+    - 当前在 `/document/`，执行 `push ./photo.jpg .` 会将客户端当前工作目录下的 `./photo.jpg`（通常为 `.cache/photo.jpg`）上传到服务器的 `/document/photo.jpg`。
+    - 执行 `push ./photo.jpg subfolder` 会上传到 `/document/subfolder/photo.jpg`。
   - **限制条件**：
     - 仅在 `/document` 路径下可用
-    - `<remote_dir>` 只支持相对路径（如 `.`、`subfolder`、`../other` 等）
     - 上传后服务器返回该目录的最新内容
 
 - **`login`**
