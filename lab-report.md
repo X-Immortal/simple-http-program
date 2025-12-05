@@ -37,16 +37,16 @@ simple-http-program
    ├─ main
    │  ├─ java
    │  │  ├─ CLI            命令行相关
-   │  │  │  ├─ CLI.java                    通用 CLI 抽象基类，封装终端、历史记录、命令表、帮助命令等
-   │  │  │  ├─ Command.java                单条命令的封装，负责参数解析与帮助信息输出
+   │  │  │  ├─ CLI.java                    通用 CLI 抽象基类
+   │  │  │  ├─ Command.java                单条命令的封装
    │  │  │  ├─ client
    │  │  │  │  └─ HTTPClientCLI.java       HTTP 客户端交互式 CLI
    │  │  │  └─ server
-   │  │  │     └─ HTTPServerCLI.java       HTTP 服务器控制 CLI（目前主要用于启动与退出）
+   │  │  │     └─ HTTPServerCLI.java       HTTP 服务器控制 CLI
    │  │  ├─ HTTP           HTTP 协议层与业务层
    │  │  │  ├─ client
-   │  │  │  │  ├─ HTTPClient.java          面向上层的 HTTP 客户端封装，基于 TCPClient
-   │  │  │  │  └─ File.java                客户端缓存文件封装，保存响应内容与时间戳（用于 If-Modified-Since / 304）
+   │  │  │  │  ├─ HTTPClient.java          面向上层的 HTTP 客户端封装
+   │  │  │  │  └─ File.java                客户端缓存文件封装
    │  │  │  ├─ message
    │  │  │  │  ├─ HTTPRequest.java         HTTP 请求报文模型及解析/序列化
    │  │  │  │  │  ├─ HTTPRequestLine       内部类：方法/路径/版本校验与解析
@@ -56,7 +56,7 @@ simple-http-program
    │  │  │  │  │  ├─ HTTPStatusLine        内部类：状态行及状态码合法性校验
    │  │  │  │  │  ├─ HTTPResponseHeaders   内部类：响应头管理与格式校验
    │  │  │  │  │  └─ HTTPResponseBody      内部类：消息体封装
-   │  │  │  │  └─ exception                请求/响应行、头、整体格式异常以及方法不允许等异常定义
+   │  │  │  │  └─ exception                报文相关异常
    │  │  │  │     ├─ HTTPMethodNotAllowedException.java
    │  │  │  │     ├─ HTTPRequestFormatException.java
    │  │  │  │     ├─ HTTPRequestHeadersFormatException.java
@@ -72,15 +72,15 @@ simple-http-program
    │  │  │     ├─ HTTPServer.java          核心 HTTP 服务器实现，继承 TCPServer
    │  │  │     └─ user
    │  │  │        ├─ User.java             用户实体
-   │  │  │        ├─ UserManager.java      用户注册/登录/登出、token 管理、用户目录映射与 root token 管理
-   │  │  │        └─ exception             用户名/密码格式、用户不存在、密码错误等业务异常
+   │  │  │        ├─ UserManager.java      用户管理类
+   │  │  │        └─ exception             用户相关异常
    │  │  │           ├─ PasswordException.java
    │  │  │           ├─ PasswordFormatException.java
    │  │  │           ├─ UsernameFormatException.java
    │  │  │           └─ UserNotExistsException.java
    │  │  ├─ TCP            TCP 抽象层
-   │  │  │  ├─ TCPClient.java              对底层 Socket 的封装，提供发送/接收字节流、长连接等能力
-   │  │  │  └─ TCPServer.java              通用 TCP 服务器：监听端口、处理连接、将字节流交由回调处理
+   │  │  │  ├─ TCPClient.java              对底层 Socket 的封装
+   │  │  │  └─ TCPServer.java              通用 TCP 服务器
    │  │  └─ utils          工具类
    │  │     ├─ EncodingUtil.java           二进制与文本（UTF-8）互转工具
    │  │     ├─ FileUtil.java               文件读写、列目录、获取扩展名/时间戳等
@@ -143,7 +143,7 @@ simple-http-program
     - 职责：建立连接、发送与接收字节流
     - 特点：超时控制、连接状态检测
 
-- **`TCPServer`（服务器）
+- **`TCPServer`**（服务器）
     - 职责：监听端口、接受连接、分发字节流处理
     - 特点：线程池处理并发连接、回调模式处理字节流
 
