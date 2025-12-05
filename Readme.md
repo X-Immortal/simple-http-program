@@ -351,13 +351,13 @@ Client> enter http://140.210.142.61:8019/
 - **`push`**
   - **功能**：从本地缓存目录（`.cache/`）上传文件到服务器的指定目录。
   - **用法**：
-    - `push <filename> <remote_dir>`：上传本地文件 `.cache/<filename>` 到服务器 `当前路径/<remote_dir>` 下
+    - `push <filepath> <remote_dir>`：上传本地文件 `.cache/<filename>` 到服务器 `当前路径/<remote_dir>` 下
     - `push -r <filename> <remote_dir>`：以 root 权限上传
   - **选项**：
     - `-r` / `--root`：以 root 权限上传
   - **使用示例**：
-    - 当前在 `/document/`，执行 `push photo.jpg .` 会将 `.cache/photo.jpg` 上传到服务器的 `/document/photo.jpg`
-    - 执行 `push photo.jpg subfolder` 会上传到 `/document/subfolder/photo.jpg`
+    - 当前在 `/document/`，执行 `push ./photo.jpg .` 会将 `.cache/photo.jpg` 上传到服务器的 `/document/photo.jpg`
+    - 执行 `push ./photo.jpg subfolder` 会上传到 `/document/subfolder/photo.jpg`
   - **限制条件**：
     - 仅在 `/document` 路径下可用
     - `<remote_dir>` 只支持相对路径（如 `.`、`subfolder`、`../other` 等）

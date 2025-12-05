@@ -9,6 +9,8 @@ import HTTP.message.exception.HTTPRequestFormatException;
 import HTTP.message.exception.HTTPResponseFormatException;
 import HTTP.rule.MIME;
 import HTTP.rule.MIMETypeNotSupportedException;
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
 import utils.EncodingUtil;
 import utils.FileUtil;
 import utils.JSON;
@@ -27,6 +29,7 @@ public class HTTPClientCLI extends CLI {
     private String path;
     private String baseURL;
     private final String CACHE_DIR = System.getProperty("user.dir") + File.separator + ".cache" + File.separator;
+    private final LineReader userReader = LineReaderBuilder.builder().terminal(terminal).build();
 
     {
         prompt = "Client";
@@ -246,21 +249,17 @@ public class HTTPClientCLI extends CLI {
         int maxTimes = 3;
         String username, password;
         Console console = System.console();
-        if (console == null) {
-            System.out.println("Client error");
-            return;
-        }
 
         while (true) {
             if (--maxTimes < 0) {
                 System.out.println("Too many attempts");
                 return;
             }
-            username = console.readLine("your username: ");
+            username = userReader.readLine("your username: ");
             if (username.isEmpty()) {
                 continue;
             }
-            password = new String(console.readPassword("your password: "));
+            password = userReader.readLine("your password: ", '\0');
             if (password.isEmpty()) {
                 continue;
             }
@@ -290,22 +289,21 @@ public class HTTPClientCLI extends CLI {
 
         int maxTimes = 3;
         String username, password, confirm;
-        Console console = System.console();
 
         while (true) {
             if (--maxTimes < 0) {
                 System.out.println("Too many attempts");
                 return;
             }
-            username = console.readLine("your username: ");
+            username = userReader.readLine("your username: ");
             if (username.isEmpty()) {
                 continue;
             }
-            password = new String(console.readPassword("your password: "));
+            password = userReader.readLine("your password: ", '\0');
             if (password.isEmpty()) {
                 continue;
             }
-            confirm = new String(console.readPassword("confirm your password: "));
+            confirm = userReader.readLine("confirm your password: ", '\0');
             if (!password.equals(confirm)) {
                 System.out.println("Password does not match");
                 continue;
