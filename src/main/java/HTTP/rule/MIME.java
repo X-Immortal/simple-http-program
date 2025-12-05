@@ -28,6 +28,6 @@ public class MIME {
     }
 
     public static boolean isText(String type) {
-        return type.startsWith("text/");
+        return !type.startsWith("image/");
     }
 }

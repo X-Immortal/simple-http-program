@@ -3,7 +3,7 @@
 这是一个基于 TCP 自实现 HTTP 协议栈的 **简易 HTTP 服务器与客户端** 项目，包含：
 
 - **HTTP 服务器端**：监听端口、解析 HTTP 请求、路由分发、静态文件服务、用户注册/登录/鉴权、文档目录访问/上传。
-- **HTTP 客户端 CLI**：基于 TCPClient 与 HTTP 协议构造请求、处理 3xx/304 等状态码、实现简单缓存与重定向、提供交互式命令行操作。
+- **HTTP 客户端 CLI**：基于 TCPClient 与 HTTP 协议构造请求、处理 301/302/304 等状态码、实现简单缓存与重定向、提供交互式命令行操作。
 - **命令行框架**：封装通用 CLI 基类与命令解析能力，支持历史记录、帮助等。
 
 项目核心目标是：在不依赖现成 Web 框架的前提下，**从 TCP 层手写一个可工作的 HTTP 客户端/服务器与用户/文件服务系统**。
@@ -12,17 +12,15 @@
 
 ## 项目结构
 
-### 顶层结构
 
 ```text
-web
+simple-http-program
 ├─ pom.xml                 Maven 项目配置（JDK 11、依赖管理）
 ├─ Readme.md               项目说明（本文件）
 ├─ .cache                  运行时自动创建：HTTP 客户端下载文件的本地缓存目录
 ├─ .history                运行时自动创建：客户端/服务器 CLI 的命令历史目录
-├─ .data                   运行时自动创建：用户相关数据与状态的持久化存储（例如用户信息、token 等）
+├─ .data                   运行时自动创建：用户相关数据的持久化存储
 ├─ root                    HTTP 服务器的“站点根目录”
-│  ├─ index.html           可选首页
 │  ├─ welcome.txt          访问 `/` 时返回的默认文本
 │  ├─ msgbody              存放错误页面或通用消息体模板
 │  │  ├─ 400.txt
@@ -33,12 +31,12 @@ web
 │     ├─ data.json         示例 JSON 数据
 │     ├─ ever.jpg          示例图片资源
 │     ├─ test.txt          示例文本资源
-│     ├─ 61dc0775
-│     │  └─ test1          模拟不同用户/目录结构
-│     │     ├─ ever.jpg
-│     │     └─ test.txt
-│     └─ test
-│        └─ 14.jpg
+│     ├─ test              示例文件夹资源
+│     │  └─ 14.jpg
+│     └─ 61dc0775          用户"user"的私有目录
+│        └─ test1          
+│           ├─ ever.jpg
+│           └─ test.txt
 └─ src
    ├─ main
    │  ├─ java
@@ -51,7 +49,7 @@ web
    │  │  │     └─ HTTPServerCLI.java       HTTP 服务器控制 CLI（目前主要用于启动与退出）
    │  │  ├─ HTTP           HTTP 协议层与业务层
    │  │  │  ├─ client
-   │  │  │  │  ├─ HTTPClient.java          面向上层的 HTTP 客户端封装，基于 TCPClient；负责发送请求、处理 3xx/304、维护缓存与重定向表、登录/注销/注册等高层封装
+   │  │  │  │  ├─ HTTPClient.java          面向上层的 HTTP 客户端封装，基于 TCPClient
    │  │  │  │  └─ File.java                客户端缓存文件封装，保存响应内容与时间戳（用于 If-Modified-Since / 304）
    │  │  │  ├─ message
    │  │  │  │  ├─ HTTPRequest.java         HTTP 请求报文模型及解析/序列化
@@ -75,7 +73,7 @@ web
    │  │  │  │  ├─ MIME.java                扩展名与 MIME 类型映射，判断文本/二进制等
    │  │  │  │  └─ MIMETypeNotSupportedException.java  不支持的 MIME 类型异常
    │  │  │  └─ server
-   │  │  │     ├─ HTTPServer.java          核心 HTTP 服务器实现，继承 TCPServer；负责解析 TCP 字节流、路由 `/`、`/register`、`/login`、`/document`、`/logout` 等，并组合 HTTPResponse，处理 200/301/302/304/400/404/405/409/500 等状态码
+   │  │  │     ├─ HTTPServer.java          核心 HTTP 服务器实现，继承 TCPServer
    │  │  │     └─ user
    │  │  │        ├─ User.java             用户实体
    │  │  │        ├─ UserManager.java      用户注册/登录/登出、token 管理、用户目录映射与 root token 管理
@@ -99,104 +97,104 @@ web
 
 ---
 
-## 核心类关系（简易类图描述）
+## 代码设计
 
-### 命令行层（CLI 相关）
+### 分层架构
 
-命令行部分可以大致画成下面这样（`<>` 表示泛型，占位说明）：
+项目采用分层设计，从下到上分别为：
 
-```text
-                       +----------------------+
-                       |      Command         |
-                       +----------------------+
-                       | - usage              |
-                       | - description        |
-                       | - argsNum            |
-                       | - options            |
-                       | - handler            |
-                       +----------+-----------+
-                                  ^
-                                  |
-                 uses             |
-+-----------------+     commands  |
-|       CLI       |----------------------+
-+-----------------+                      |
-| - prompt        |                      |
-| - welcome       |                      |
-| - historyPath   |                      |
-| - terminal      |                      |
-| - reader        |                      |
-| - parser        |                      |
-| - commands: Map |<---------------------+
-+--------+--------+
-         ^
-         |
-         | extends
-         |
-  +------+----------------+       +----------------------+
-  |    HTTPClientCLI      |       |    HTTPServerCLI     |
-  +-----------------------+       +----------------------+
-  | - client: HTTPClient  |       | - server: HTTPServer |
-  | - path, baseURL       |       +----------------------+
-  | - CACHE_DIR           |
-  +-----------------------+
+```
+┌─────────────────────────────────────┐
+│      应用层（CLI & 业务逻辑）       │
+├─────────────────────────────────────┤
+│   HTTPClient / HTTPServer           │
+│   (HTTP 协议实现与请求路由)         │
+├─────────────────────────────────────┤
+│   TCPClient / TCPServer             │
+│   (TCP 连接与字节流传输)            │
+├─────────────────────────────────────┤
+│   Socket（Java 标准库）             │
+└─────────────────────────────────────┘
 ```
 
-- **`CLI`（抽象类）**
-  - 负责通用命令行框架：终端、历史记录、命令表、命令分发和 `help` 命令。
-  - 持有 `commands: Map<String, Command>`，每个命令由 `Command` 表示。
-- **`Command`**
-  - 封装每一条子命令的 **用法 (`usage`)**、**说明 (`description`)**、**参数数目 (`argsNum`)**、**选项 (`options`)** 和 **处理函数 (`handler`)**。
-- **`HTTPClientCLI` / `HTTPServerCLI`**
-  - 都继承自 `CLI`，在构造时向 `commands` 注册各自的业务命令。
-  - `HTTPClientCLI` 聚合 `HTTPClient`；`HTTPServerCLI` 聚合 `HTTPServer`。
+### 命令行框架（CLI）
 
-### HTTP 协议与业务层
+**设计思想**：通用的命令行处理框架，支持命令注册、解析、历史记录等功能
 
-整体从 TCP 到 HTTP 再到用户/文件，可以抽象为：
+- **`CLI`（抽象基类）**
+  - 职责：命令行交互、终端管理、命令分发
+  - 核心功能：
+    - 维护命令表（`commands: Map<String, Command>`）
+    - 读取用户输入并解析命令
+    - 提供历史记录（基于 jline3 库）
+    - 自动生成帮助信息
 
-```text
-   +-------------------+              +-------------------+
-   |     TCPClient     |<-------------|     TCPServer     |
-   +-------------------+   bytes      +-------------------+
-            ^                              ^
-            | extends                      | extends
-            |                              |
-   +-------------------+          +-----------------------+
-   |    HTTPClient     |          |      HTTPServer       |
-   +-------------------+          +-----------------------+
-   | - redirectionMap  |          | - routerMap           |
-   | - cache           |          | - ROOT_PATH/...       |
-   | - token           |          +-----------+-----------+
-   +---------+---------+                      |
-             | uses                           | uses
-             v                                v
-   +-------------------+          +-----------------------+
-   |   HTTPRequest     |<-------->|     HTTPResponse      |
-   +-------------------+          +-----------------------+
-   | + RequestLine     |          | + StatusLine          |
-   | + Headers         |          | + Headers             |
-   | + Body            |          | + Body                |
-   +-------------------+          +-----------------------+
-```
+- **`Command`（命令封装类）**
+  - 职责：单个命令的定义与执行
+  - 包含：用法、说明、参数数目、选项、处理函数
+  - 支持自定义选项（`-h`/`--help` 自动支持）
 
-以及与用户管理、工具类的关系：
+- **`HTTPClientCLI` / `HTTPServerCLI`**（具体实现）
+  - 分别继承 `CLI` 并在初始化时注册业务命令
+  - `HTTPClientCLI`：提供客户端操作命令（enter、fetch、push 等）
+  - `HTTPServerCLI`：提供服务器控制命令（启动、退出等）
 
-```text
-HTTPClient --------------------> UserManager (root token / 普通 token)
-HTTPServer --------------------> UserManager (注册/登录/登出、用户目录映射)
-HTTP* / HTTPServer / HTTPClient -> MIME / HTTPVersion / JSON / FileUtil / EncodingUtil ...
-```
+### 网络通信层（TCP）
 
-- **`HTTPClient` extends `TCPClient`**
-  - 对外提供：`enter`、`push`、`login`、`register`、`logout` 等高层接口。
-  - 内部组合 `HTTPRequest`/`HTTPResponse`，并通过 `TCPClient` 负责真正的发送/接收字节流。
-  - 维护 `redirectionMap`、`cache`、`token` 用于处理 3xx 重定向、304 缓存以及登录态。
-- **`HTTPServer` extends `TCPServer`**
-  - 通过回调将 TCP 字节转换成 `HTTPRequest`，路由到 `/`、`/register`、`/login`、`/document`、`/logout` 对应的处理函数，再封装成 `HTTPResponse`。
-  - 依赖 `UserManager` 进行用户注册、登录、登出和用户目录映射，依赖 `FileUtil`/`MIME`/`EncodingUtil` 等完成文件读写与 MIME 处理。
-- **`HTTPRequest` / `HTTPResponse`**
-  - 各自内部拆分为 **行（RequestLine/StatusLine）+ 头（Headers）+ 体（Body）**，负责报文的解析与序列化，并对方法、路径、版本、状态码等做合法性校验。
+**设计思想**：通用的 TCP 客户端/服务器封装，支持字节流的发送与接收
+
+- **`TCPClient`**（客户端）
+  - 职责：建立连接、发送与接收字节流
+  - 特点：超时控制、连接状态检测
+
+- **`TCPServer`（服务器）
+  - 职责：监听端口、接受连接、分发字节流处理
+  - 特点：线程池处理并发连接、回调模式处理字节流
+
+### HTTP 协议层
+
+**设计思想**：HTTP 协议的实现与业务逻辑的分离
+
+- **`HTTPRequest` / `HTTPResponse`（报文模型）**
+  - 分为三部分：**行（RequestLine/StatusLine）**、**头（Headers）**、**体（Body）**
+  - 职责：报文的解析与序列化、合法性校验
+  - 校验内容：方法、路径、版本、状态码等
+
+- **`HTTPClient` extends `TCPClient`**（客户端）
+  - 职责：HTTP 协议操作、请求构造、响应处理
+  - 提供高层接口：`enter`、`push`、`login`、`register`、`logout`
+  - 特殊处理：
+    - **重定向**：自动跟随 301/302 重定向
+    - **缓存**：304 Not Modified 时使用本地缓存
+    - **身份认证**：维护 token 用于登录态管理
+
+- **`HTTPServer` extends `TCPServer`**（服务器）
+  - 职责：HTTP 请求路由、业务处理、响应返回
+  - 路由表：将 URL 路径映射到对应的处理函数
+  - 支持的路径：
+    - `/`：首页
+    - `/register`：用户注册
+    - `/login`：用户登录
+    - `/document`：文档访问与上传
+    - `/logout`：用户登出
+
+### 用户与权限管理
+
+**`UserManager`（用户管理器）**
+- 职责：用户数据持久化、身份验证、权限管理
+- 核心功能：
+  - 用户注册与登录
+  - Token 管理（普通用户 token 与 root token 分离）
+  - 用户目录映射（将用户隔离到各自的目录）
+  - 权限验证
+
+### 工具类
+
+- **`EncodingUtil`**：字节与文本的编解码（UTF-8）
+- **`FileUtil`**：文件读写、目录遍历、属性查询
+- **`JSON`**：简易 JSON 解析与生成
+- **`URLUtil`**：URL 路径规范化
+- **`MIME`**：文件扩展名与 MIME 类型映射
 
 ---
 
@@ -286,12 +284,21 @@ Client> enter http://140.210.142.61:8019/
 
 后续即可在该连接上继续使用 `enter` / `refresh` / `fetch` / `push` / `login` / `register` / `logout` 等命令，与远程服务端进行交互。
 
-> **使用终端的建议**  
-> 本项目的命令行使用了 jline 提供的历史记录与行编辑功能，**强烈建议在系统自带终端中运行 Maven 命令**（如 Windows Terminal / PowerShell / CMD，或 macOS Terminal / iTerm2 等），以获得完整的历史记录和快捷键支持。  
-> 如果通过 IDE（一键运行 main 方法）或 IDE 自带的模拟终端运行，可能：  
-> - 无法正确加载或保存历史记录（`.history` 目录下的文件不生效）；  
-> - 在启动时看到一些关于终端能力探测的红色报错/警告，这些信息一般可以忽略；  
-> - 某些 IDE 模拟终端对 jline/jansi/jna 的适配不完整，可能出现光标、回退键、颜色显示异常等现象。
+> **使用终端的建议与已知限制**  
+> - **优先使用系统终端**（Windows Terminal / PowerShell / CMD / macOS Terminal / iTerm2 / Linux 终端等），才能完整体验 CLI 的全部能力（含历史记录、正常行编辑/光标行为）。  
+> - IDE 相关区别：  
+>   - **IDE 一键运行（Run/Debug 按钮）**：IDE 自带虚拟控制台，登录/注册不可用，历史记录不可用（上下键仅移动光标）。  
+>   - **IDE 的“终端”面板 + `mvn exec:java ...`**：IDE 实现的虚拟终端，大部分功能可用，但可能出现光标渲染问题（终端能力探测被中间层截断）。  
+> - 本 CLI 目前仅提供历史记录功能，没有颜色控制、没有 Tab 补全。  
+
+> **历史记录使用提示**  
+> - 历史文件：`.history/http-client-history.txt`（客户端）/ `.history/http-server-history.txt`（服务器），在系统终端中可跨会话持久。  
+> - 基本浏览：直接按 ↑/↓ 逐条查看历史，回车执行。  
+> - 前缀过滤：先输入前缀（如输入 `ent`），再按 ↑，只会出现以该前缀开头的历史命令（如各类 `enter ...`），便于快速定位。  
+> - 适用范围：需在系统终端使用；IDE 一键运行/虚拟终端中历史功能不可用或行为异常。  
+
+> **网络波动与 “transmission failed” 处理提示**
+> - 如遇 `transmission failed`，请参阅文档中的 **“项目限制与已知问题”** 节以获取可能原因与排查建议。
 
 ---
 
@@ -304,89 +311,98 @@ Client> enter http://140.210.142.61:8019/
 所有命令都支持 `-h` / `--help` 查看自身详细说明。
 
 - **`help`**
-  - **功能**：显示所有命令的用法和说明。
-  - **用法**：
-    - `help`
+  - **功能**：显示所有可用命令及其简要说明。
+  - **用法**：`help`
 
 - **`exit`**
-  - **功能**：退出客户端程序，若已登录则会先调用 `logout`，并关闭底层连接。
-  - **用法**：
-    - `exit`
+  - **功能**：退出客户端程序。若当前已登录，会先自动登出并关闭与服务器的连接。
+  - **用法**：`exit`
 
 - **`enter`**
-  - **功能**：进入指定页面或在当前路径下前进/后退。
-  - **用法**：
-    - `enter <url>`：首次访问指定 URL，例如：`enter http://127.0.0.1:8019/`。
-    - `enter -f <subpath>`：在当前路径下 **前进** 到子路径，例如当前 `/document/`，执行 `enter -f test` → `/document/test`。
-    - `enter -b`：在目录层级上 **后退一级**。
+  - **功能**：访问页面或在目录中导航。支持三种使用模式：
+    1. **首次连接**：`enter <url>` 建立到服务器的连接（如 `enter http://127.0.0.1:8019/`）
+    2. **目录前进**：`enter -f <path>` 在当前目录下进入子路径（如当前在 `/document/`，执行 `enter -f subfolder` 会访问 `/document/subfolder`）
+    3. **目录后退**：`enter -b` 回退到上一级目录
   - **选项**：
-    - `-f` / `--forward <subpath>`：从当前目录向下拼接子路径。
-    - `-b` / `--back`：退回到上一级目录。
-    - `-r` / `--root`：以 root 权限访问（使用 root token）。
-  - **注意**：
-    - `-f` 与 `-b` 不能同时使用。
-    - 使用 URL 形式（非 `-f`/`-b`）时，会在未连接的情况下自动建立连接。
+    - `-f <path>` / `--forward <path>`：相对当前路径前进到指定子路径
+    - `-b` / `--back`：后退到上一级目录
+    - `-r` / `--root`：以 root 权限访问（若使用此选项需有有效的 root token）
+  - **约束**：
+    - `-f` 和 `-b` 不能同时使用
+    - 使用完整 URL 时，若未连接会自动建立连接
 
 - **`refresh`**
-  - **功能**：在当前路径下刷新页面（重新发起 GET 请求）。
-  - **用法**：
-    - `refresh`
+  - **功能**：重新加载当前页面（重新向服务器请求当前路径）。
+  - **用法**：`refresh` 或 `refresh -r`（以 root 权限刷新）
   - **选项**：
-    - `-r` / `--root`：以 root 权限刷新当前页面。
-  - **前置条件**：
-    - 必须已有连接且已经进入过某个路径（即 `baseURL` 和 `path` 已初始化）。
+    - `-r` / `--root`：以 root 权限重新加载
+  - **前置条件**：必须已建立连接且访问过至少一个页面
 
 - **`fetch`**
-  - **功能**：在当前 `/document/...` 页面下下载单个文件到本地缓存目录。
-  - **用法**：
-    - `fetch <filename>`
+  - **功能**：从服务器下载单个文件到本地缓存目录（`.cache/`）。
+  - **用法**：`fetch <filename>` 或 `fetch -r <filename>`（以 root 权限下载）
   - **选项**：
-    - `-r` / `--root`：以 root 权限拉取文件。
-  - **行为**：
-    - 仅在当前路径以 `/document` 开头时有效，否则会提示 `'fetch' is invalid in this page`。
-    - 仅允许单纯文件名（不能带 `/`）。
-    - 成功时会将文件保存到本地 `.cache/` 目录，并提示缓存路径。
+    - `-r` / `--root`：以 root 权限下载
+  - **限制条件**：
+    - 仅在 `/document` 路径下可用，其他路径会提示不可用
+    - 只能下载文件，不能是包含路径分隔符 `/` 的表达式
+    - 文件保存在 `.cache/` 目录中供后续操作使用
 
 - **`push`**
-  - **功能**：从本地缓存目录 `.cache/` 上传文件到服务器指定路径。
+  - **功能**：从本地缓存目录（`.cache/`）上传文件到服务器的指定目录。
   - **用法**：
-    - `push <filepath> <remote path>`
-      - `<filepath>`：本地缓存中的文件名（实际上读取的是 `.cache/<filepath>`）。
-      - `<remote path>`：服务器上以当前目录为基准的 **相对路径**（目录），例如 `.`、`subdir`。
+    - `push <filename> <remote_dir>`：上传本地文件 `.cache/<filename>` 到服务器 `当前路径/<remote_dir>` 下
+    - `push -r <filename> <remote_dir>`：以 root 权限上传
   - **选项**：
-    - `-r` / `--root`：以 root 权限上传。
-  - **行为**：
-    - 要求当前路径必须在 `/document/...` 下。
-    - 最终上传路径为：`当前路径` + `<remote path>` 规范化后再拼接本地文件名。
-    - 上传成功后会打印服务器返回的页面内容，并更新当前路径。
+    - `-r` / `--root`：以 root 权限上传
+  - **使用示例**：
+    - 当前在 `/document/`，执行 `push photo.jpg .` 会将 `.cache/photo.jpg` 上传到服务器的 `/document/photo.jpg`
+    - 执行 `push photo.jpg subfolder` 会上传到 `/document/subfolder/photo.jpg`
+  - **限制条件**：
+    - 仅在 `/document` 路径下可用
+    - `<remote_dir>` 只支持相对路径（如 `.`、`subfolder`、`../other` 等）
+    - 上传后服务器返回该目录的最新内容
 
 - **`login`**
-  - **功能**：用户登录，获取并保存 token。
-  - **用法**：
-    - `login`
-  - **交互流程**：
-    - 控制台提示输入 `username` 和 `password`（密码不回显），最多尝试 3 次。
-  - **行为**：
-    - 调用 `HTTPClient.login`，若成功则从响应 JSON 中解析 `token` 并保存。
-    - 失败时会根据服务器返回的 JSON 错误信息打印具体原因（如用户名/密码错误等）。
+  - **功能**：使用用户名和密码登录服务器，获取 token 用于身份验证。
+  - **用法**：`login`
+  - **交互过程**：
+    - 提示输入用户名，密码不回显（隐藏显示）
+    - 登录失败可重试，最多 3 次
+  - **成功结果**：
+    - 服务器返回 token，客户端自动保存
+    - 后续访问文档空间时会自动使用该 token 进行身份验证
+    - 可以访问自己的私有文档空间
+  - **常见错误**：
+    - 用户不存在
+    - 密码错误
+    - 用户已在其他客户端登录
 
 - **`register`**
-  - **功能**：用户注册。
-  - **用法**：
-    - `register`
-  - **交互流程**：
-    - 依次输入 `username`、`password` 与确认密码（必须一致，最多尝试 3 次）。
-  - **行为**：
-    - 调用 `HTTPClient.register`，服务器创建用户并初始化该用户的文档空间。
-    - 若用户已存在或格式不符合要求，会返回相应错误 JSON。
+  - **功能**：注册新用户账户，同时为该用户初始化文档空间。
+  - **用法**：`register`
+  - **交互过程**：
+    - 提示输入用户名
+    - 提示输入密码（不回显）
+    - 提示确认密码（必须与第一次输入相同）
+    - 最多允许重试 3 次
+  - **成功结果**：
+    - 用户账户创建成功
+    - 服务器自动为该用户创建专属的文档空间
+    - 可立即使用该账户登录
+  - **常见错误**：
+    - 用户名已存在
+    - 用户名或密码不符合格式要求
+    - 两次输入的密码不一致
 
 - **`logout`**
-  - **功能**：用户登出。
-  - **用法**：
-    - `logout`
-  - **行为**：
-    - 调用 `HTTPClient.logout`，让服务器注销当前 token，并在客户端清空本地 token。
-
+  - **功能**：登出当前账户，清除 token 信息。
+  - **用法**：`logout`
+  - **结果**：
+    - token 被服务器注销
+    - 客户端清空本地保存的 token
+    - 之后访问需要重新登录或以 root 权限进行
+    - 自动返回到 `/login` 路径
 
 ### HTTPServerCLI 命令
 
@@ -404,218 +420,69 @@ Client> enter http://140.210.142.61:8019/
 
 ---
 
-## 课程大作业选题与要求对照说明
+## 服务端用户文档空间映射与 Root 权限
 
-本项目对应的选题为 **“主题1：基于Java Socket API搭建简单的HTTP客户端和服务器端程序”**，下面逐条说明项目如何满足文档中的要求，并给出示例命令。
+### 用户文档空间映射
 
-### 1. 完全基于 Java Socket API（不使用 Netty 等框架）
+HTTP 服务器采用 **透明的用户目录隔离机制**，为每个用户提供独立的文件存储空间，确保用户隐私和数据安全。
 
-- 项目中网络通信部分全部通过自定义的 `TCPClient` / `TCPServer` 实现，内部使用 JDK 原生的 `Socket` / `ServerSocket`，**未引入 Netty 或任何 Web/网络框架**。
-- HTTP 层（`HTTPClient` / `HTTPServer`）都是在 TCP 字节流之上手写的解析与封装：
-  - 客户端：`HTTPClient` 组装 `HTTPRequest`，通过 `TCPClient.sendMessage/receiveMessage` 发送/接收字节流，再解析为 `HTTPResponse`。
-  - 服务端：`HTTPServer` 继承 `TCPServer`，在回调中把收到的字节流解析为 `HTTPRequest`，路由处理后再封装为 `HTTPResponse` 返回。
+- **使用体验**
+  - 用户注册后即拥有一个专属的文档空间
+  - 登录后通过 `/document/` 访问时，会自动访问自己的专属空间
+  - **用户无需了解自己目录的实际位置**，只需正常使用 `/document/` 路径即可
+  - 用户只能访问自己的文件，无法访问其他用户或系统文件
 
-> IO 模型方面，本项目采用的是 **阻塞式 IO（BIO）**：每个连接在独立线程中以阻塞方式读写 Socket，符合题目要求的 IO 模型之一。
+- **权限隔离**
+  - 不同用户的文档空间完全独立，彼此无法互见
+  - 普通用户无法越权访问其他用户或系统资源
+  - 系统保留 root 权限用于管理员操作和系统维护
 
-### 2. 实现基础的 HTTP 请求/响应功能
+- **文件操作**
+  - 用户注册时系统自动初始化其文档空间
+  - 登录后可通过以下操作管理自己的文件：
+    - 浏览文档空间中的文件和文件夹结构
+    - 上传新文件到文档空间（`push` 命令）
+    - 下载文件到本地（`fetch` 命令）
 
-#### 2.1 HTTP 客户端发送请求报文、呈现响应报文
+### Root 权限机制
 
-- **发送请求报文**：由 `HTTPClient` 负责构造 `HTTPRequest`（请求行 + 头 + 体），通过 TCP 发送到服务器。
-- **呈现响应报文**：
-  - 在客户端 CLI 中，`HTTPClientCLI` 对服务器返回的 `HTTPResponse` 做了解码并打印，**会打印响应体内容**。
-  - 在服务器 CLI 中，`HTTPServerCLI` 通过回调打印收到的 `HTTPRequest` 和要发送的 `HTTPResponse`，便于观察报文内容。
+Root 权限是一种特殊的系统级权限，用于绕过普通用户的访问限制。
 
-**示例（连接远程服务器并查看响应）**：
+- **用途**
+  - 允许具有 root 权限的客户端访问所有用户的文档空间
+  - 用于系统管理、文件维护、备份等特殊操作
+  - 通常由系统管理员或具有特殊身份的客户端使用
 
-```text
-Client> enter http://140.210.142.61:8019/
-```
+- **Root Token**
+  - 系统维护一个特殊的 `root token`，与普通用户 token 独立存储和管理
+  - 仅有授权的管理员或系统配置中预设的 root token 可用
+  - 需通过 `UserManager` 中的 `root token` 管理机制获取或验证
 
-执行后，客户端会输出类似：
+- **使用方式**
+  - 在客户端命令中添加 `-r` 或 `--root` 标志
+  - 支持以下命令的 root 权限版本：
+    - `enter -r <path>`：以 root 权限访问任意路径
+    - `refresh -r`：以 root 权限刷新当前页面
+    - `fetch -r <filename>`：以 root 权限下载文件
+    - `push -r <filepath> <remote path>`：以 root 权限上传文件
+  - 使用 root 权限时，服务器会通过验证 root token 来授权请求
 
-```text
-entered: http://140.210.142.61:8019/
-...（welcome.txt 的内容）...
-```
 
-如果在本地同时运行 `HTTPServerCLI`，则在服务器端终端还能看到完整的请求报文和响应报文打印。
+## 项目限制与已知问题
 
-#### 2.2 客户端对 301、302、304 状态码的处理
+本项目为教学演示实现，以下为已知限制和使用提示：
 
-客户端的状态码处理逻辑集中在 `HTTPClient.getResponse` 中：
+- 接收/解析策略：本项目没有实现严格的流式分段解析（streaming）；实现上采用“先接收完整报文再解析”的方式以简化代码逻辑。该设计对小/中等大小文件适用，但对大文件传输存在局限性。
 
-- **301 / 302 重定向**：
-  - 对 301（Moved Permanently）：将原始路径与新的 `Location` 记录在 `redirectionMap` 中。
-  - 对 301 和 302：修改方法为 `GET`、清空请求体与 `Content-Length`，将路径改为 `Location`，**递归再次发送请求**，直到获得最终响应。
-- **304 Not Modified**：
-  - 若响应状态码为 304，客户端从本地缓存 `cache` 中取出之前保存的 `File` 对象，并返回其对应的旧响应，实现缓存命中。
+- 大文件支持说明：通过调整接收超时设置，实践中已能较稳定地传输约 3MB 左右的图片（视网络与主机性能而定）。对更大的文件不做保证，可能导致传输失败或连接中断。
 
-**示例 1：目录缺少斜杠触发 301，并自动跟随重定向**
+- 关于 "transmission failed"：客户端显示该信息时，常见原因包括但不限于：
+  1. 网络波动或超时；
+  2. 待传输文件过大（超过本实现的接收能力）；
+  3. 服务器端内部错误（例如文件系统异常，参见“服务器部署信息”）。
 
-```text
-Client> enter http://140.210.142.61:8019/document
-```
+- 调试建议：
+  - 遇到问题时请先查看部署主机的 `server.log`（详见“服务器部署信息”），确认是网络问题还是服务器端异常。
+  - 必要时可在本地运行服务端，以验证是否为网络问题
+  - 网络波动时应先用`exit`命令退出客户端再重新运行，避免传输错位(本轮接收到上一轮的报文)
 
-- 服务器端 `/document` 目录访问时，如果路径末尾缺少 `/`，会返回 301，并在 `Location` 中给出 `/document/`。
-- 客户端自动根据 301 响应再次发送 GET `/document/` 请求，用户看到的是**最终页面内容**而不是中间重定向细节。
-
-**示例 2：文件再次访问触发 304 并使用缓存**
-
-```text
-Client> enter http://140.210.142.61:8019/document/test.txt
-Client> enter http://140.210.142.61:8019/document/test.txt
-```
-
-- 第一次访问时，服务器返回 200 并携带 `Last-Modified`，客户端在本地 `cache` 中缓存该文件及时间戳。
-- 第二次访问时，客户端在请求头中加入 `If-Modified-Since`，如果服务器返回 304，客户端从本地缓存中取出旧响应，并向用户展示相同内容。
-
-**示例 3：302 临时重定向**
-
-- 当在 `/document/...` 下通过 `push` 上传文件成功后，服务器会使用 302（Found）把客户端重定向回目录页面，客户端自动处理这个 302 并展示最终目录列表。
-
-```text
-Client> enter http://140.210.142.61:8019/document/
-Client> push test.txt .
-```
-
-### 3. HTTP 服务器端功能与状态码支持
-
-#### 3.1 支持 GET 和 POST 请求
-
-- 请求方法在 `HTTPRequest.HTTPRequestLine` 中校验：
-  - `supportedMethods` 只包含 `"GET"` 和 `"POST"`，若使用其他方法会抛出 `HTTPMethodNotAllowedException`。
-- 在 `HTTPServer` 中：
-  - `/` 路由只接受 GET（返回 `welcome.txt`）。
-  - `/login` 同时支持 GET 与 POST：
-    - GET 用于检查登录状态或提示需要登录。
-    - POST 用于提交用户名/密码进行登录。
-  - `/register`、`/logout` 仅接受 POST。
-  - `/document` 路由同时支持：
-    - GET：浏览目录或下载文件。
-    - POST：上传文件。
-
-#### 3.2 支持 200、301、302、304、404、405、500 等状态码
-
-`HTTPResponse.HTTPStatusLine` 中定义并支持的状态码包括：200, 301, 302, 304, 400, 401, 404, 405, 409, 500。  
-在 `HTTPServer` 中，这些状态码通过以下场景体现：
-
-- **200 OK**：正常返回文件内容或目录列表、JSON 响应（注册/登录成功等）。
-- **301 Moved Permanently**：访问目录/文件时路径结尾的 `/` 不规范（多一个或少一个）时，由 `handleMovedPermanently` 返回 301。
-- **302 Found**：通过 `handleFound` 返回，例如上传文件成功后重定向到目录视图、未登录访问 `/document` 时重定向到 `/login`。
-- **304 Not Modified**：客户端发送 `If-Modified-Since` 且文件未修改时，由 `handleNotModified` 返回 304。
-- **404 Not Found**：访问不存在的文件或目录时，由 `handleNotFound` 返回 404，并使用 `root/msgbody/404.txt` 作为消息体。
-- **405 Method Not Allowed**：对仅允许某些方法的路由使用了其他方法时，通过 `handleMethodNotAllowed` 返回 405，并在消息体中说明具体原因。
-- **500 Internal Server Error**：读取文件失败、MIME 解析错误或其他未预期异常时，通过 `handleInternalServerError` 返回 500，并使用 `root/msgbody/500.txt` 作为消息体。
-
-> 课程要求中的状态码（200、301、302、304、404、405、500）在本项目中均得到支持，另外还补充了 400、409 等状态码，用于更细致的错误表示。
-
-#### 3.3 实现长连接
-
-- 客户端 `HTTPClient` 继承自 `TCPClient`，在构造时建立与服务器的 TCP 连接，并在整个 CLI 生命周期中保持连接不重建：
-  - 多次执行 `enter` / `fetch` / `push` / `login` / `register` / `logout` 等命令时，均复用同一 TCP 连接，体现为**长连接**。
-- 服务器 `HTTPServer` 继承自 `TCPServer`，在 `run()` 方法中持续监听端口，为每个连接维护独立会话，支持同一连接上的多次请求/响应往返。
-
-### 4. MIME 类型支持（至少三种，含一种非文本）
-
-项目通过 `HTTP.rule.MIME` 类维护了扩展名到 MIME 类型的映射，服务器在返回文件时会根据扩展名设置 `Content-Type`。  
-在 `root/document/` 中提供了多种测试文件，对应不同的 MIME 类型，例如：
-
-- 文本类型：
-  - `test.txt` → `text/plain`
-  - `data.json` → `application/json`
-- 非文本类型：
-  - `ever.jpg` / `14.jpg` → `image/jpeg`
-
-**示例命令**：
-
-```text
-Client> enter http://140.210.142.61:8019/document/
-Client> fetch test.txt        # 下载 text/plain
-Client> fetch ever.jpg        # 下载 image/jpeg
-```
-
-服务端会根据文件扩展名返回对应 MIME 类型，客户端则将内容写入本地 `.cache/` 目录。
-
-### 5. 注册和登录功能（可配合 Postman 等工具）
-
-根据题目要求，“数据无需持久化，存在内存中即可，只需要实现注册和登录的接口，可以使用 postman 等方法模拟请求发送，无需客户端”。  
-本项目在此基础上 **实现了服务端接口 + 自定义客户端 CLI**，同时仍然可以使用 Postman / curl 等工具直接调接口。
-
-#### 5.1 服务端接口实现
-
-- `/register`（POST）：
-  - 请求头：`Content-Type: application/json`
-  - 请求体：`{"username":"...","password":"..."}`。
-  - 使用 `UserManager.register` 在内存中创建用户，并为其分配私有文档目录。
-- `/login`（POST）：
-  - 请求头：`Content-Type: application/json`
-  - 请求体：`{"username":"...","password":"..."}`。
-  - 使用 `UserManager.login` 校验用户名/密码，成功时生成 token，并在 JSON 中返回：`{"success":"true","token":"..."}`。
-- `/logout`（POST）：
-  - 请求头中携带 `Authorization: <token>`，实现注销登录状态。
-- 用户信息、登录状态、token 与用户目录映射等，均由 `UserManager` 维护在内存中；服务器重启后会清空这些状态，符合“数据无需持久化”的要求。
-
-#### 5.2 使用 Postman / curl 调用接口示例
-
-以远程服务器为例（`140.210.142.61:8019`）：
-
-- **注册**：
-
-```bash
-curl -X POST "http://140.210.142.61:8019/register" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"username\":\"alice\",\"password\":\"123456\"}"
-```
-
-（macOS/Linux 去掉 `^`，改用 `\` 续行即可）
-
-- **登录**：
-
-```bash
-curl -X POST "http://140.210.142.61:8019/login" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"username\":\"alice\",\"password\":\"123456\"}"
-```
-
-成功时会返回类似：
-
-```json
-{"success":"true","token":"xxxxxx"}
-```
-
-将返回的 `token` 用于后续访问 `/document` 或注销：
-
-- **访问受保护资源**（如 `/document`）：
-
-```bash
-curl "http://140.210.142.61:8019/document/" ^
-  -H "Authorization: xxxxxx"
-```
-
-- **注销**：
-
-```bash
-curl -X POST "http://140.210.142.61:8019/logout" ^
-  -H "Authorization: xxxxxx"
-```
-
-#### 5.3 使用项目自带客户端体验注册/登录
-
-在客户端 CLI 中，也可以通过交互式命令体验同样的接口：
-
-```text
-Client> enter http://140.210.142.61:8019/
-Client> register
-your username: alice
-your password: ******
-confirm your password: ******
-
-Client> login
-your username: alice
-your password: ******
-```
-
-登录成功后，即可使用 `enter / fetch / push / logout` 等命令访问自己的文档目录，实现从“TCP → HTTP → 认证授权 → 文件服务”的完整链路演示。
-
- 

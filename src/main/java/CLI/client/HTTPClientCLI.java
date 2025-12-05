@@ -195,6 +195,7 @@ public class HTTPClientCLI extends CLI {
                 System.out.println("current: " + baseURL + path);
             }, args.hasOption("r"));
         } catch (HTTPResponseFormatException | IOException e) {
+            System.out.println(e.getMessage());
             System.out.println("transmission failed");
         } catch (HTTPRequestFormatException | HTTPMethodNotAllowedException e) {
             System.out.println("Client error");
